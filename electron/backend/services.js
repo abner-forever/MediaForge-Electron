@@ -646,10 +646,41 @@ async function loginWithBrowser(platform, onEvent) {
   const page = await context.newPage();
   const url = platform === 'weibo' ? 'https://passport.weibo.com/sso/signin?entry=miniblog&source=miniblog&disp=popup' : 'https://www.toutiao.com/';
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  if (platform === 'toutiao') {
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 15000 });
+    } catch {
+      // Continue even if the page never reaches network idle.
+    }
+    const loginSelectors = [
+      'text=登录',
+      '.login-button',
+      '[data-click="login"]',
+      "button:has-text('登录')",
+    ];
+    for (const selector of loginSelectors) {
+      try {
+        const locator = page.locator(selector).first;
+        if (await locator.isVisible({ timeout: 2500 })) {
+          await locator.click({ timeout: 5000 });
+          break;
+        }
+      } catch {
+        // Try the next selector.
+      }
+    }
+  }
   onEvent({ type: 'progress', message: '请在弹出的浏览器窗口中登录' });
   try {
     if (platform === 'weibo') {
-      await page.waitForFunction(() => window.location.hostname.includes('weibo.com') && !window.location.hostname.includes('passport'), { timeout: 300000 });
+      await page.waitForFunction(() => {
+        const host = window.location.hostname;
+        const path = window.location.pathname;
+        const onWeiboHome = host.includes('weibo.com')
+          && !host.includes('passport')
+          && !/\/login|\/signin|\/newlogin|\/register|\/signup/.test(path);
+        return onWeiboHome;
+      }, { timeout: 300000 });
     } else {
       await page.waitForFunction(() => document.cookie.includes('sessionid') || document.cookie.includes('tt_sessionid'), { timeout: 300000 });
     }
@@ -657,11 +688,240 @@ async function loginWithBrowser(platform, onEvent) {
     await browser.close();
     return { success: false, message: '登录超时，请重试' };
   }
+  if (platform === 'weibo' && !page.url().includes('weibo.com')) {
+    await page.goto('https://weibo.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  }
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+  } catch {
+    // Continue with the cookies that are already available.
+  }
   const cookies = await context.cookies();
+  if (!cookies.length) {
+    await browser.close();
+    return { success: false, message: '登录成功但未获取到 Cookie，请重试' };
+  }
   const cookieParts = cookies.map((cookie) => `${cookie.name}=${cookie.value}`);
   const cookie = cookieParts.join('; ');
+  let identity = {};
+  if (platform === 'weibo') {
+    const uidCookie = cookies.find((item) => item.name === 'uid')?.value || '';
+    identity = await extractWeiboIdentity(page, uidCookie);
+    if (!identity.uid || !identity.screen_name) {
+      const verified = await verifyWeiboCookie(cookie, uidCookie);
+      if (verified.valid) identity = verified;
+    }
+  } else {
+    identity = await extractToutiaoIdentity(page);
+  }
   await browser.close();
-  return { success: true, cookie };
+  return { success: true, cookie, ...identity };
+}
+
+function pickWeiboUser(payload) {
+  const user = payload?.data?.user || payload?.data || payload?.user;
+  if (!user || typeof user !== 'object') return {};
+
+  const uid = user.idstr || user.id || user.uid;
+  const screenName = user.screen_name || user.name || '';
+  const avatar = user.avatar_hd || user.avatar_large || user.profile_image_url || user.avatar_url || user.avatar || '';
+
+  return {
+    uid: uid ? String(uid) : '',
+    screen_name: screenName,
+    avatar,
+  };
+}
+
+async function extractWeiboIdentity(page, uidHint = '') {
+  try {
+    const endpoint = uidHint ? `/ajax/profile/info?uid=${encodeURIComponent(uidHint)}` : '/ajax/profile/info';
+    const payload = await page.evaluate(async (profileEndpoint) => {
+      const response = await fetch(profileEndpoint, {
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!response.ok) return null;
+      return response.json();
+    }, endpoint);
+    return pickWeiboUser(payload);
+  } catch {
+    return {};
+  }
+}
+
+function cookieValue(cookie, name) {
+  for (const part of String(cookie || '').split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) return rest.join('=');
+  }
+  return '';
+}
+
+async function fetchWeiboProfile(cookie, uid) {
+  if (!uid) return {};
+  const response = await axios.get(`https://weibo.com/ajax/profile/info?uid=${encodeURIComponent(uid)}`, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36',
+      Cookie: cookie,
+      Referer: 'https://weibo.com/',
+      Accept: 'application/json, text/plain, */*',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    timeout: 20000,
+  });
+  return pickWeiboUser(response.data);
+}
+
+async function fetchWeiboUidFromFeed(cookie) {
+  try {
+    const response = await axios.get('https://weibo.com/ajax/feed/allGroups', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36',
+        Cookie: cookie,
+        Referer: 'https://weibo.com/',
+        Accept: 'application/json, text/plain, */*',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      timeout: 20000,
+    });
+    const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    const match = text.match(/"uid"\s*:\s*"(\d+)"/);
+    return match?.[1] || '';
+  } catch {
+    return '';
+  }
+}
+
+async function extractToutiaoIdentity(page) {
+  try {
+    const payload = await page.evaluate(async () => {
+      const response = await fetch('/pgc/ma/profile/', {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json, text/plain, */*',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+      if (!response.ok) return null;
+      return response.json();
+    });
+    if (payload?.message === 'success') {
+      const user = payload.data?.user || {};
+      return {
+        uid: String(user.user_id || user.id || ''),
+        screen_name: user.name || user.screen_name || '',
+        avatar: user.avatar_url || user.avatar || '',
+      };
+    }
+  } catch {
+    // Continue to fallback.
+  }
+
+  try {
+    const payload = await page.evaluate(async () => {
+      const response = await fetch('/mp/agw/creator_center/user_info?app_id=1231', {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json, text/plain, */*',
+          Referer: 'https://mp.toutiao.com/profile_v4/index',
+        },
+      });
+      if (!response.ok) return null;
+      return response.json();
+    });
+    if (payload?.message === 'success') {
+      return {
+        uid: String(payload.user_id || payload.media_id || ''),
+        screen_name: payload.name || '',
+        avatar: payload.avatar_url || '',
+      };
+    }
+  } catch {
+    // Identity extraction is best-effort.
+  }
+
+  return {};
+}
+
+async function verifyWeiboCookie(cookie, uidHint = '') {
+  if (!cookie) return { valid: false, message: '未提供微博 Cookie' };
+
+  let uid = uidHint || cookieValue(cookie, 'uid');
+  try {
+    let identity = await fetchWeiboProfile(cookie, uid);
+    if (!identity.uid) {
+      uid = await fetchWeiboUidFromFeed(cookie);
+      identity = await fetchWeiboProfile(cookie, uid);
+    }
+    if (identity.uid) return { valid: true, ...identity };
+    return { valid: false, message: '未获取到微博账号信息，请确认 Cookie 是否有效' };
+  } catch (error) {
+    if (error.response?.status === 401 || error.response?.status === 403 || error.response?.status === 400) {
+      return { valid: false, message: 'Cookie 无效或已过期' };
+    }
+    return { valid: false, message: `验证失败：${error.message || '网络错误'}` };
+  }
+}
+
+async function verifyToutiaoCookie(cookie) {
+  if (!cookie) return { valid: false, message: '未提供今日头条 Cookie' };
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/148.0.0.0 Safari/537.36',
+    Cookie: cookie,
+    Referer: 'https://www.toutiao.com/',
+    Accept: 'application/json, text/plain, */*',
+    'X-Requested-With': 'XMLHttpRequest',
+  };
+
+  try {
+    const response = await axios.get('https://www.toutiao.com/pgc/ma/profile/', { headers, timeout: 15000 });
+    if (response.status === 200 && response.data?.message === 'success') {
+      const user = response.data.data?.user || {};
+      return {
+        valid: true,
+        uid: String(user.user_id || user.id || ''),
+        screen_name: user.name || user.screen_name || '',
+        avatar: user.avatar_url || user.avatar || '',
+      };
+    }
+  } catch {
+    // Try the creator center API below.
+  }
+
+  try {
+    const response = await axios.get('https://mp.toutiao.com/mp/agw/creator_center/user_info?app_id=1231', {
+      headers: { ...headers, Referer: 'https://mp.toutiao.com/profile_v4/index' },
+      timeout: 15000,
+    });
+    if (response.status === 200 && response.data?.message === 'success') {
+      return {
+        valid: true,
+        uid: String(response.data.user_id || response.data.media_id || ''),
+        screen_name: response.data.name || '',
+        avatar: response.data.avatar_url || '',
+      };
+    }
+  } catch {
+    // Fall back to basic reachability below.
+  }
+
+  try {
+    const response = await axios.get('https://www.toutiao.com/', {
+      headers: { ...headers, Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+      timeout: 15000,
+      maxRedirects: 0,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+    if (response.status === 200) {
+      return { valid: true, uid: '', screen_name: '', avatar: '', message: 'Cookie 有效，但无法获取用户信息' };
+    }
+  } catch {
+    // Ignore and return invalid below.
+  }
+
+  return { valid: false, message: 'Cookie 无效或已过期', uid: '', screen_name: '', avatar: '' };
 }
 
 module.exports = {
@@ -685,4 +945,6 @@ module.exports = {
   buildHtml,
   wechatPublish,
   loginWithBrowser,
+  verifyWeiboCookie,
+  verifyToutiaoCookie,
 };

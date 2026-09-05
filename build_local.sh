@@ -32,10 +32,20 @@ fi
 
 log "Installing Electron dependencies"
 cd "$PROJECT_ROOT/electron"
-npm ci
+if [ ! -d node_modules ]; then
+  if command -v pnpm >/dev/null 2>&1; then
+    pnpm install --frozen-lockfile
+  else
+    npm install
+  fi
+fi
 
 log "Packaging Electron app"
-npx electron-builder --publish never
+if command -v pnpm >/dev/null 2>&1; then
+  pnpm exec electron-builder --publish never
+else
+  npx electron-builder --publish never
+fi
 
 ok "Build complete"
 echo "Artifacts: $PROJECT_ROOT/electron/out"

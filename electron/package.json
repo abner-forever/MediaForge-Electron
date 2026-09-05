@@ -6,7 +6,7 @@
   "main": "main.cjs",
   "author": "abner-forever",
   "license": "MIT",
-  "repository": "https://github.com/abner-forever/MediaForge.git",
+  "repository": "https://github.com/abner-forever/MediaForge-Electron.git",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",

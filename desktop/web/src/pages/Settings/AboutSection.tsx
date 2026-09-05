@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { logsApi, type LogFileInfo } from '../../api/client';
 import { useStore } from '../../stores';
+import { checkForUpdates, getAppInfo } from '../../desktopBridge';
 
 let vConsoleInstance: any = null;
 
@@ -33,6 +34,9 @@ export default function AboutSection() {
   const addToast = useStore(s => s.addToast);
   const [clickCount, setClickCount] = useState(0);
   const [devMode, setDevMode] = useState(false);
+  const [appInfo, setAppInfo] = useState<{ version: string; platform: string; packaged: boolean } | null>(null);
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'up-to-date' | 'available' | 'error' | 'dev'>('idle');
+  const [updateMessage, setUpdateMessage] = useState('');
 
   // ── 日志管理状态 ──
   const [logFiles, setLogFiles] = useState<LogFileInfo[]>([]);
@@ -48,8 +52,10 @@ export default function AboutSection() {
   const [clearingAll, setClearingAll] = useState(false);
 
   useEffect(() => {
+    getAppInfo().then(setAppInfo).catch(() => setAppInfo(null));
+
     logsApi.list().then(res => {
-      setLogFiles(res.files);
+      setLogFiles(res.files || []);
       setLogError('');
     }).catch(err => {
       setLogError(err.message || '加载日志列表失败');
@@ -188,6 +194,28 @@ export default function AboutSection() {
     setDevMode(false);
   };
 
+  const handleCheckUpdates = useCallback(async () => {
+    setUpdateState('checking');
+    setUpdateMessage('');
+    try {
+      const result = await checkForUpdates();
+      if (!result) {
+        setUpdateState('error');
+        setUpdateMessage('无法获取更新状态');
+        addToast('无法获取更新状态', 'error');
+        return;
+      }
+      setUpdateState(result.status);
+      setUpdateMessage(result.message);
+      if (result.status === 'available') addToast('发现新版本', 'success');
+      if (result.status === 'error') addToast(result.message, 'error');
+    } catch (err: any) {
+      setUpdateState('error');
+      setUpdateMessage(err.message || '检查更新失败');
+      addToast(err.message || '检查更新失败', 'error');
+    }
+  }, [addToast]);
+
   const totalSize = logFiles.reduce((s, f) => s + f.size, 0);
 
   return (
@@ -242,7 +270,7 @@ export default function AboutSection() {
         >
           <span className="text-sm text-text-secondary">应用版本</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-text font-mono">v{__APP_VERSION__}</span>
+            <span className="text-sm font-semibold text-text font-mono">v{appInfo?.version || __APP_VERSION__}</span>
             {clickCount > 0 && !devMode && (
               <span className="text-[10px] text-accent font-medium bg-accent-soft px-2 py-0.5 rounded-full">
                 {5 - clickCount}
@@ -255,6 +283,26 @@ export default function AboutSection() {
             )}
           </div>
         </button>
+        <div className="flex items-center justify-between px-4 py-2.5 mt-1 rounded-xl bg-bg-secondary/50">
+          <span className="text-sm text-text-secondary">运行环境</span>
+          <span className="text-sm text-text-muted">
+            {appInfo ? `${appInfo.platform} · ${appInfo.packaged ? '桌面版' : '开发模式'}` : '未知'}
+          </span>
+        </div>
+        <button
+          onClick={handleCheckUpdates}
+          disabled={updateState === 'checking'}
+          className="btn btn-sm mt-2"
+        >
+          {updateState === 'checking' ? '检查中...' : '检查更新'}
+        </button>
+        {updateMessage && (
+          <p className={`text-xs mt-2 ${
+            updateState === 'available' ? 'text-accent' : updateState === 'error' ? 'text-danger' : 'text-text-muted'
+          }`}>
+            {updateMessage}
+          </p>
+        )}
         <div className="flex items-center justify-between px-4 py-2.5 mt-1 rounded-xl bg-bg-secondary/50">
           <span className="text-sm text-text-secondary">更新时间</span>
           <span className="text-sm text-text-muted">
@@ -315,7 +363,7 @@ export default function AboutSection() {
               <div className="empty-state py-4">
                 <p className="text-sm text-danger">{logError}</p>
                 <button className="btn btn-xs mt-2" onClick={() => { setLoading(true); setLogError('');
-                  logsApi.list().then(res => { setLogFiles(res.files); setLogError(''); }).catch(err => setLogError(err.message || '加载失败')).finally(() => setLoading(false));
+                  logsApi.list().then(res => { setLogFiles(res.files || []); setLogError(''); }).catch(err => setLogError(err.message || '加载失败')).finally(() => setLoading(false));
                 }}>重试</button>
               </div>
             )}

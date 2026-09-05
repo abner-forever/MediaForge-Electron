@@ -36,7 +36,7 @@ export interface QueueSlice {
 
 export const createQueueSlice: StateCreator<AppState, [], [], QueueSlice> = (set, get) => ({
   queue: [],
-  setQueue: (q) => set({ queue: q }),
+  setQueue: (q) => set({ queue: Array.isArray(q) ? q : [] }),
 
   // 发布任务状态
   publishingTasks: {},

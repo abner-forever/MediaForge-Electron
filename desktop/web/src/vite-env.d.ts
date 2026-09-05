@@ -8,7 +8,11 @@ interface ElectronDesktopApi {
   openExternal(url: string): Promise<boolean>;
   setNativeTheme(theme: string): Promise<boolean>;
   getAppInfo(): Promise<{ version: string; platform: string; packaged: boolean }>;
-  checkForUpdates(): Promise<boolean>;
+  checkForUpdates(): Promise<{
+    status: 'checking' | 'up-to-date' | 'available' | 'error' | 'dev';
+    message: string;
+    version?: string;
+  }>;
 }
 
 interface Window {

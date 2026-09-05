@@ -50,6 +50,22 @@ export async function sseGet<T = unknown>(
   options?: { signal?: AbortSignal; flushBuffer?: boolean },
 ): Promise<void> {
   const res = await fetch(url, { signal: options?.signal });
+  const contentType = res.headers.get('content-type') || '';
+  if (!res.ok || !contentType.includes('text/event-stream')) {
+    let detail = `SSE 请求失败（${res.status}）`;
+    if (!res.ok) {
+      try {
+        const data = await res.json();
+        detail = data?.detail || data?.message || detail;
+      } catch {
+        // Keep the status-based message when the response is not JSON.
+      }
+    } else {
+      detail = '服务未返回事件流，请确认后端路由已启用';
+    }
+    throw new Error(detail);
+  }
+  if (!res.body) throw new Error('服务未返回可读取的响应流');
   await readSSEStream<T>(res.body!, onEvent, { flushBuffer: options?.flushBuffer });
 }
 

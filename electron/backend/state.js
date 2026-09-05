@@ -165,9 +165,9 @@ class AppState {
     return true;
   }
 
-  setDiscoveryResults(posts) { this.discoveryResults = posts; }
+  setDiscoveryResults(posts) { this.discoveryResults = Array.isArray(posts) ? posts : []; }
   getDiscoveryResults() { return this.discoveryResults; }
-  setImageScores(scores) { Object.assign(this.imageScores, scores); }
+  setImageScores(scores) { Object.assign(this.imageScores, scores || {}); }
   getImageScores() { return { ...this.imageScores }; }
 
   addOperation(action, detail = '') {

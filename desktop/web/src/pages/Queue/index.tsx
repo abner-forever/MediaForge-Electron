@@ -27,8 +27,8 @@ export default function Queue() {
   const [filterStatus, setFilterStatus] = useState('');
 
   useEffect(() => {
-    queueApi.get().then(d => setQueue(d.queue));
-    wechatAccountApi.list().then(d => setAccounts(d.accounts)).catch(() => {});
+    queueApi.get().then(d => setQueue(d.queue || [])).catch(() => {});
+    wechatAccountApi.list().then(d => setAccounts(d.accounts || [])).catch(() => {});
   }, [setQueue]);
 
   const typeOptions = useMemo(() => {

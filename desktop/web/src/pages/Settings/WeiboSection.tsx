@@ -73,11 +73,13 @@ export default function WeiboSection({ data, save, onReload }: { data: SettingsD
   async function handleWeiboLogin() {
     setLoginState('loading');
     setLoginMessage('正在启动浏览器...');
+    let succeeded = false;
     try {
       await settingsApi.weiboLogin((evt: WeiboLoginEvent) => {
         if (evt.type === 'progress') {
           setLoginMessage(evt.message || '');
         } else if (evt.type === 'done') {
+          succeeded = true;
           // 一次性设置所有状态，确保状态一致性
           const newCookie = evt.cookie || '';
           const newUid = evt.uid || '';
@@ -89,13 +91,14 @@ export default function WeiboSection({ data, save, onReload }: { data: SettingsD
           setAvatar(newAvatar);
           setLoginState('idle');
           setLoginMessage('登录成功，Cookie 已自动填入');
-          addToast('微博登录成功，请点击保存', 'success');
+          addToast('微博登录成功，鉴权信息已自动保存', 'success');
         } else if (evt.type === 'error') {
           setLoginState('error');
           setLoginMessage(evt.message || '登录失败');
           addToast(evt.message || '微博登录失败', 'error');
         }
       });
+      if (succeeded) await onReload?.();
     } catch (err: any) {
       setLoginState('error');
       setLoginMessage(err.message || '登录异常');

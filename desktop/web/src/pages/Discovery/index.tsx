@@ -168,7 +168,7 @@ export default function Discovery() {
       }, (evt) => {
         if (evt.type === 'progress') setSearchMessage(evt.message!);
         else if (evt.type === 'done') {
-          discoveryApi.get().then(r => setDiscoveryPosts(r.posts));
+          discoveryApi.get().then(r => setDiscoveryPosts(r.posts || []));
           clearSelectedPosts(); setImageScores({}); clearSelectedImages();
           setActiveTab('posts');
           addToast(`找到 ${evt.total_posts} 条帖子，${evt.total_images} 张图片`, 'success');
@@ -194,7 +194,7 @@ export default function Discovery() {
       }, (evt) => {
         if (evt.type === 'progress') setSearchMessage(evt.message!);
         else if (evt.type === 'done') {
-          discoveryApi.get().then(r => setDiscoveryPosts(r.posts));
+          discoveryApi.get().then(r => setDiscoveryPosts(r.posts || []));
           setCurrentPage(nextPage);
           addToast(`已加载第 ${nextPage} 页，共 ${evt.total_posts} 条帖子`, 'success');
         } else if (evt.type === 'error') addToast(evt.message || '加载失败', 'error');
@@ -219,11 +219,12 @@ export default function Discovery() {
           else if (evt.type === 'progress') setProgress({ current: evt.current!, total: evt.total!, detail: `${evt.celebrity} · ${evt.scene}` });
           else if (evt.type === 'done') {
             discoveryApi.get().then(r => {
-              setDiscoveryPosts(r.posts);
-              const downloaded = r.posts.flatMap(p => p.local_images || []);
+              const posts = r.posts || [];
+              setDiscoveryPosts(posts);
+              const downloaded = posts.flatMap(p => p.local_images || []);
               if (downloaded.length) {
                 setActiveTab('gallery');
-                discoveryApi.checkWatermark(downloaded).then(res => setWatermarkedImages(new Set(res.watermarked)));
+                discoveryApi.checkWatermark(downloaded).then(res => setWatermarkedImages(new Set(res.watermarked || [])));
               }
             });
             addToast(`下载完成！${evt.downloaded} 张成功${evt.dropped ? `，${evt.dropped} 张跳过` : ''}`, 'success');

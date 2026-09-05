@@ -50,7 +50,7 @@ jobs:
 
       - name: 安装 Electron 依赖
         working-directory: electron
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: 构建 macOS Electron 安装包
         working-directory: electron
@@ -100,7 +100,7 @@ jobs:
       - name: 安装 Electron 依赖
         working-directory: electron
         shell: bash
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: 构建 Windows Electron 安装包
         working-directory: electron

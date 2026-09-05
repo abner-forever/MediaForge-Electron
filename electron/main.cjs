@@ -16,6 +16,9 @@ let backendServer = null;
 let backendPort = null;
 let forceClose = false;
 let quitting = false;
+const devWindowIcon = app.isPackaged
+  ? undefined
+  : path.join(__dirname, '..', 'desktop', 'web', 'public', 'logo-icon.png');
 
 app.setAppUserModelId(APP_ID);
 app.setName(APP_NAME);
@@ -84,6 +87,7 @@ function createChildWindow(url) {
     minHeight: 560,
     title: APP_NAME,
     parent: mainWindow || undefined,
+    icon: devWindowIcon,
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: {
       contextIsolation: true,
@@ -131,6 +135,7 @@ function createMainWindow() {
     show: false,
     title: APP_NAME,
     backgroundColor: '#f8f5ff',
+    icon: devWindowIcon,
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -209,12 +214,18 @@ function setupIpc() {
   }));
 
   ipcMain.handle('desktop:check-for-updates', async () => {
-    if (!app.isPackaged) return false;
+    if (!app.isPackaged) {
+      return { status: 'dev', message: '开发模式不支持检查更新', version: app.getVersion() };
+    }
     try {
-      await autoUpdater.checkForUpdates();
-      return true;
-    } catch {
-      return false;
+      const result = await autoUpdater.checkForUpdates();
+      if (!result) {
+        return { status: 'up-to-date', message: '当前已是最新版本', version: app.getVersion() };
+      }
+      const latestVersion = result.updateInfo?.version || '';
+      return { status: 'available', message: `发现新版本 v${latestVersion}，正在下载...`, version: latestVersion };
+    } catch (error) {
+      return { status: 'error', message: error?.message || '检查更新失败', version: app.getVersion() };
     }
   });
 }

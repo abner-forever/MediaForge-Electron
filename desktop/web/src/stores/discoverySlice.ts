@@ -34,7 +34,7 @@ export const createDiscoverySlice: StateCreator<AppState, [], [], DiscoverySlice
   discoveryTags: '',
   discoverySuperTopics: '',
   discoveryToutiaoKeywords: '',
-  setDiscoveryPosts: (posts) => set({ discoveryPosts: posts }),
+  setDiscoveryPosts: (posts) => set({ discoveryPosts: Array.isArray(posts) ? posts : [] }),
   togglePostSelect: (idx) =>
     set((s) => {
       const next = new Set(s.selectedPosts);
