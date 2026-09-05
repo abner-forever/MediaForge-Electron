@@ -203,12 +203,8 @@ export default function AboutSection() {
         setUpdateState('error');
         setUpdateMessage('无法获取更新状态');
         addToast('无法获取更新状态', 'error');
-        return;
       }
-      setUpdateState(result.status);
-      setUpdateMessage(result.message);
-      if (result.status === 'available') addToast('发现新版本', 'success');
-      if (result.status === 'error') addToast(result.message, 'error');
+      setUpdateState('idle');
     } catch (err: any) {
       setUpdateState('error');
       setUpdateMessage(err.message || '检查更新失败');

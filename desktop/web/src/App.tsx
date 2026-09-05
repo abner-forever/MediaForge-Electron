@@ -4,6 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Loading from './components/Loading';
 import PublishStatusPanel from './components/feature/PublishStatusPanel';
+import UpdateNotification from './components/feature/UpdateNotification';
 import { appRoutes } from './routes';
 import { useStore } from './stores';
 import { userApi } from './api/client';
@@ -116,6 +117,7 @@ export default function App() {
         </Route>
       </Routes>
       <PublishStatusPanel />
+      <UpdateNotification />
     </BrowserRouter>
   );
 }

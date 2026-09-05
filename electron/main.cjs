@@ -16,6 +16,8 @@ let backendServer = null;
 let backendPort = null;
 let forceClose = false;
 let quitting = false;
+let updateCheckInProgress = false;
+let updateDownloadInProgress = false;
 const devWindowIcon = app.isPackaged
   ? undefined
   : path.join(__dirname, '..', 'desktop', 'web', 'public', 'logo-icon.png');
@@ -25,6 +27,107 @@ app.setName(APP_NAME);
 
 function log(message) {
   console.log(`[MediaForge] ${message}`);
+}
+
+function updateStatePath() {
+  return path.join(app.getPath('userData'), 'update-state.json');
+}
+
+function readUpdateState() {
+  try {
+    return JSON.parse(fs.readFileSync(updateStatePath(), 'utf8')) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeUpdateState(patch = {}) {
+  const state = readUpdateState();
+  Object.assign(state, patch);
+  fs.mkdirSync(path.dirname(updateStatePath()), { recursive: true });
+  fs.writeFileSync(updateStatePath(), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+function emitUpdaterEvent(payload) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('updater:event', payload);
+  }
+}
+
+function parseVersion(value) {
+  return String(value || '')
+    .replace(/^v/i, '')
+    .split(/[.-]/)
+    .map((part) => Number.parseInt(part, 10) || 0);
+}
+
+function isVersionNewer(candidate, current) {
+  const left = parseVersion(candidate);
+  const right = parseVersion(current);
+  const length = Math.max(left.length, right.length);
+  for (let i = 0; i < length; i += 1) {
+    const a = left[i] || 0;
+    const b = right[i] || 0;
+    if (a > b) return true;
+    if (a < b) return false;
+  }
+  return false;
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isUpdaterDisabled() {
+  return process.env.MEDIAFORGE_DISABLE_UPDATER === '1';
+}
+
+async function checkForUpdates(manual = false) {
+  if (!app.isPackaged) {
+    if (manual) emitUpdaterEvent({ type: 'up-to-date', message: '开发模式不支持检查更新', currentVersion: app.getVersion(), manual: true });
+    return;
+  }
+  if (isUpdaterDisabled()) {
+    if (manual) emitUpdaterEvent({ type: 'error', message: '更新功能已关闭' });
+    return;
+  }
+  if (updateCheckInProgress) return;
+
+  updateCheckInProgress = true;
+  try {
+    if (manual) emitUpdaterEvent({ type: 'checking', message: '正在检查更新...' });
+    const result = await autoUpdater.checkForUpdates();
+    const currentVersion = app.getVersion();
+    const latestVersion = result?.updateInfo?.version || '';
+    if (!latestVersion || !isVersionNewer(latestVersion, currentVersion)) {
+      if (manual) emitUpdaterEvent({ type: 'up-to-date', message: '当前已是最新版本', currentVersion, manual: true });
+      return;
+    }
+
+    if (!manual && readUpdateState().ignoredVersion === latestVersion) return;
+    emitUpdaterEvent({
+      type: 'available',
+      version: latestVersion,
+      currentVersion,
+      message: `发现新版本 v${latestVersion}`,
+      manual,
+    });
+  } catch (error) {
+    const message = error?.message || '检查更新失败';
+    if (manual) emitUpdaterEvent({ type: 'error', message });
+    else console.error('[MediaForge updater] check failed:', error);
+  } finally {
+    updateCheckInProgress = false;
+  }
+}
+
+async function autoCheckToday() {
+  if (!app.isPackaged || isUpdaterDisabled()) return;
+  const state = readUpdateState();
+  const today = todayKey();
+  if (state.lastAutoCheckDate === today) return;
+  writeUpdateState({ lastAutoCheckDate: today });
+  await checkForUpdates(false);
 }
 
 function reservePort(preferredPort) {
@@ -214,45 +317,65 @@ function setupIpc() {
   }));
 
   ipcMain.handle('desktop:check-for-updates', async () => {
-    if (!app.isPackaged) {
-      return { status: 'dev', message: '开发模式不支持检查更新', version: app.getVersion() };
-    }
+    await checkForUpdates(true);
+    return { ok: true };
+  });
+
+  ipcMain.handle('desktop:download-update', async () => {
+    if (!app.isPackaged || isUpdaterDisabled() || updateDownloadInProgress) return false;
+    updateDownloadInProgress = true;
     try {
-      const result = await autoUpdater.checkForUpdates();
-      if (!result) {
-        return { status: 'up-to-date', message: '当前已是最新版本', version: app.getVersion() };
-      }
-      const latestVersion = result.updateInfo?.version || '';
-      return { status: 'available', message: `发现新版本 v${latestVersion}，正在下载...`, version: latestVersion };
+      await autoUpdater.downloadUpdate();
+      return true;
     } catch (error) {
-      return { status: 'error', message: error?.message || '检查更新失败', version: app.getVersion() };
+      emitUpdaterEvent({ type: 'error', message: error?.message || '下载更新失败' });
+      return false;
+    } finally {
+      updateDownloadInProgress = false;
     }
+  });
+
+  ipcMain.handle('desktop:quit-and-install', () => {
+    if (app.isPackaged) autoUpdater.quitAndInstall(false, true);
+    return true;
+  });
+
+  ipcMain.handle('desktop:ignore-update', (_event, version) => {
+    writeUpdateState({ ignoredVersion: String(version || '') });
+    return true;
   });
 }
 
 function setupAutoUpdater() {
-  if (!app.isPackaged || process.env.MEDIAFORGE_DISABLE_UPDATER === '1') return;
-  autoUpdater.autoDownload = true;
+  if (!app.isPackaged || isUpdaterDisabled()) return;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('error', (error) => console.error('[MediaForge updater]', error));
+  autoUpdater.on('error', (error) => {
+    console.error('[MediaForge updater]', error);
+    emitUpdaterEvent({ type: 'error', message: error?.message || '更新失败' });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    emitUpdaterEvent({
+      type: 'downloading',
+      percent: Math.floor(progress.percent || 0),
+      transferred: progress.transferred || 0,
+      total: progress.total || 0,
+      bytesPerSecond: progress.bytesPerSecond || 0,
+    });
+  });
   autoUpdater.on('update-downloaded', (info) => {
-    dialog.showMessageBox(mainWindow || undefined, {
-      type: 'info',
-      buttons: ['立即重启', '稍后'],
-      defaultId: 0,
-      cancelId: 1,
-      title: APP_NAME,
-      message: `新版本 v${info.version} 已下载，是否立即重启安装？`,
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall(false, true);
+    emitUpdaterEvent({
+      type: 'downloaded',
+      version: info.version,
+      message: `v${info.version} 已下载完成，是否立即重启安装？`,
     });
   });
 
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((error) => {
-      console.error('[MediaForge updater] check failed:', error);
+    autoCheckToday().catch((error) => {
+      console.error('[MediaForge updater] auto check failed:', error);
     });
-  }, 5000);
+  }, 8000);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();

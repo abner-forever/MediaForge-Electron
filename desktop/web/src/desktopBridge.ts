@@ -34,14 +34,30 @@ export async function getAppInfo(): Promise<{ version: string; platform: string;
 }
 
 export async function checkForUpdates(): Promise<{
-  status: 'checking' | 'up-to-date' | 'available' | 'error' | 'dev';
-  message: string;
-  version?: string;
+  ok: boolean;
 } | null> {
   if (window.electronAPI?.checkForUpdates) {
     return window.electronAPI.checkForUpdates();
   }
-  return { status: 'error', message: '当前环境不支持检查更新' };
+  return null;
+}
+
+export async function downloadUpdate(): Promise<boolean> {
+  return window.electronAPI?.downloadUpdate ? window.electronAPI.downloadUpdate() : false;
+}
+
+export async function quitAndInstall(): Promise<boolean> {
+  return window.electronAPI?.quitAndInstall ? window.electronAPI.quitAndInstall() : false;
+}
+
+export async function ignoreUpdate(version: string): Promise<boolean> {
+  return window.electronAPI?.ignoreUpdate ? window.electronAPI.ignoreUpdate(version) : false;
+}
+
+export function onUpdaterEvent(callback: (payload: DesktopUpdaterEvent) => void): () => void {
+  if (!window.electronAPI?.onUpdaterEvent) return () => {};
+  const id = window.electronAPI.onUpdaterEvent(callback);
+  return () => window.electronAPI?.offUpdaterEvent(id);
 }
 
 export function getDesktopBridge() {
