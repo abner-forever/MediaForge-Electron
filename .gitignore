@@ -1,6 +1,10 @@
 data
 desktop/static/
 desktop/web/node_modules/
+.npm-cache/
+electron/node_modules/
+electron/.npm-cache/
+electron/out/
 .env
 .claude/settings.local.json
 __pycache__/
@@ -14,3 +18,5 @@ coverage.xml
 .coverage
 tests/reports/
 .gstack/
+
+.pnpm-store/

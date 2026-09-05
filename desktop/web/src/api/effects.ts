@@ -1,5 +1,6 @@
 import { get, post, del } from './base';
 import { sseGet } from './sse';
+import { saveFileWithDialog } from '../desktopBridge';
 import type { PublishEffect, EffectSummary, EffectTrendPoint, EffectCompareData, MpArticlesResponse, TopArticle, ImageAnalysisItem, AiAnalysisEvent } from '../types';
 
 export const effectsApi = {
@@ -84,19 +85,20 @@ export const effectsApi = {
     const bom = '﻿';
     const csvContent = bom + rows.join('\n');
 
-    if (window.pywebview?.api) {
-      // PyWebView 环境：弹出原生文件保存对话框
+    const hasDesktopBridge = Boolean(window.electronAPI);
+    if (hasDesktopBridge) {
       const encoded = btoa(unescape(encodeURIComponent(csvContent)));
-      await window.pywebview.api.save_file('effects_export.csv', encoded, 'text/csv');
-    } else {
-      // 普通浏览器：blob 下载
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'effects_export.csv';
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveFileWithDialog('effects_export.csv', encoded, 'text/csv');
+      return;
     }
+
+    // 普通浏览器：blob 下载
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'effects_export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   },
 };

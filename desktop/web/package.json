@@ -7,11 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "desktop:start": "vite build && cd ../ && python3 main.py",
+    "desktop:start": "vite build && cd ../electron && npm start",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:python": "cd ../../ && python3 -m pytest -v",
     "install:package": "pnpm i"
   },
   "dependencies": {

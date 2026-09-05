@@ -1,5 +1,6 @@
 import { get, post } from './base';
 import { sseGet } from './sse';
+import { setNativeTheme } from '../desktopBridge';
 import type {
   SettingsData,
   WeiboLoginEvent, WeiboVerifyResult,
@@ -11,7 +12,10 @@ export const settingsApi = {
   save: (data: Record<string, string>) => post<{ success: boolean }>('/api/settings', data),
   getKey: (provider?: string) => get<{ key: string }>(`/api/settings/api-key${provider ? `?provider=${provider}` : ''}`),
   getTheme: () => get<{ theme: string; accent: string }>('/api/settings/theme'),
-  setWindowAppearance: (theme: string) => post<{ success: boolean }>('/api/theme/window-native', { theme }),
+  setWindowAppearance: async (theme: string) => {
+    setNativeTheme(theme).catch(() => {});
+    return post<{ success: boolean }>('/api/theme/window-native', { theme });
+  },
   testAiConnection: (params: { provider?: string; model?: string; base_url?: string; api_key?: string }) =>
     post<{ success: boolean; message: string; errors?: { url: string; status?: number; summary: string; detail: string }[] }>('/api/settings/ai-test', params),
   aiBalance: (params: { provider?: string; base_url?: string; api_key?: string }) =>

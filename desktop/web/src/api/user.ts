@@ -76,7 +76,7 @@ export const userApi = {
   changePassword: (data: ChangePasswordRequest) =>
     post<{ success: boolean; message: string }>('/api/user/change-password', data),
 
-  /** 获取本地保存的 token（PyWebView 重启后恢复登录） */
+  /** 获取本地保存的 token（桌面应用重启后恢复登录） */
   getSavedToken: () =>
     get<{ success: boolean; token: string | null }>('/api/user/saved-token'),
 

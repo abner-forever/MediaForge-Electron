@@ -67,7 +67,7 @@ export const createUserSlice: StateCreator<AppState, [], [], UserSlice> = (set, 
       token: null
     })
     localStorage.removeItem('auth_token')
-    // 清除后端持久化的 token（PyWebView 重启恢复用）
+    // 清除后端持久化的 token（桌面应用重启恢复用）
     userApi.logout().catch(() => {})
   },
 

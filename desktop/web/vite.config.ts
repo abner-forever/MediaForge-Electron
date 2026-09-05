@@ -4,8 +4,8 @@ import { fileURLToPath, URL } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 
-const pyproject = readFileSync(resolve(__dirname, '../../pyproject.toml'), 'utf-8');
-const version = pyproject.match(/^version\s*=\s*"([^"]+)"/m)?.[1] || '0.0.0';
+const electronPackage = JSON.parse(readFileSync(resolve(__dirname, '../../electron/package.json'), 'utf-8'));
+const version = electronPackage.version || '0.0.0';
 const buildTime = new Date().toISOString();
 
 export default defineConfig({

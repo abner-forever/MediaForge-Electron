@@ -7,18 +7,19 @@ import PublishStatusPanel from './components/feature/PublishStatusPanel';
 import { appRoutes } from './routes';
 import { useStore } from './stores';
 import { userApi } from './api/client';
+import { openExternalUrl } from './desktopBridge';
 
 export default function App() {
   const { isAuthenticated, setToken, setUser, setAuthenticated, login, logout } = useStore();
 
   // 应用启动时恢复登录状态
-  // PyWebView 的 localStorage 重启后会丢失，所以优先从后端文件恢复 token
+  // 桌面壳的 localStorage 重启后可能丢失，所以优先从后端文件恢复 token
   useEffect(() => {
     const checkAuth = async () => {
       // 优先从 localStorage 读取（同一次会话内有效）
       let savedToken = localStorage.getItem('auth_token');
 
-      // localStorage 没有（PyWebView 重启），从后端持久化文件恢复
+      // localStorage 没有（桌面应用重启），从后端持久化文件恢复
       if (!savedToken) {
         try {
           const saved = await userApi.getSavedToken();
@@ -61,9 +62,10 @@ export default function App() {
     return () => { window.removeEventListener('auth:logout', handleLogout); };
   }, []);
 
-  // PyWebView 环境：拦截外部链接，通过 bridge 打开新应用窗口
+  // 桌面环境：拦截外部链接，通过桌面 bridge 打开。
   useEffect(() => {
-    if (!window.pywebview?.api) return;
+    const hasDesktopBridge = Boolean(window.electronAPI);
+    if (!hasDesktopBridge) return;
 
     const handler = (e: MouseEvent) => {
       const link = (e.target as Element).closest('a[href]');
@@ -82,7 +84,7 @@ export default function App() {
       }
 
       e.preventDefault();
-      window.pywebview!.api.open_url(href).catch(() => {
+      openExternalUrl(href).catch(() => {
         // bridge 失败时兜底：用浏览器默认方式打开
         window.open(href, '_blank');
       });

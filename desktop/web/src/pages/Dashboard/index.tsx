@@ -99,7 +99,7 @@ export default function Dashboard() {
         <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>无法连接后端服务</h2>
         <p style={{ fontSize: 14, color: 'var(--text-muted)', maxWidth: 400, margin: '0 auto' }}>
           请确保已启动
-          <code style={{ margin: '0 8px', padding: '4px 10px', borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12 }}>cd desktop && python main.py</code>
+          <code style={{ margin: '0 8px', padding: '4px 10px', borderRadius: 8, background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12 }}>cd electron && npm start</code>
         </p>
         <button
           onClick={load}

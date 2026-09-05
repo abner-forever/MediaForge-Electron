@@ -1,4 +1,4 @@
-name: 构建桌面安装包
+name: 构建 Electron 桌面安装包
 
 on:
   push:
@@ -7,96 +7,38 @@ on:
       - '**.md'
       - '.gitignore'
       - 'CLAUDE.md'
-      - 'SPEC.md'
-      - 'USER_GUIDE.md'
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  check-commit:
+  app-version:
     runs-on: ubuntu-latest
     outputs:
-      is_release: ${{ steps.check.outputs.is_release }}
-    steps:
-      - name: 检查是否为 release commit
-        id: check
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          if echo "$COMMIT_MSG" | head -1 | grep -qE '^chore\(release\):'; then
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "检测到 release commit，跳过构建"
-          else
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  calculate-version:
-    needs: [check-commit]
-    if: needs.check-commit.outputs.is_release == 'false'
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.detect.outputs.version }}
-      new_release: ${{ steps.detect.outputs.new }}
-      candidate_tag: ${{ steps.detect.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: 安装 python-semantic-release
-        run: pip install python-semantic-release
-
-      - name: 预计算下一版本（不修改任何文件）
-        id: detect
-        run: |
-          BEFORE_TAG=$(git tag --sort=-creatordate | head -1 || echo '')
-          echo "before_tag=${BEFORE_TAG}" >> $GITHUB_OUTPUT
-
-          # --print 仅输出版本号到 stdout，不修改文件、不创建 commit/tag
-          NEXT_VERSION=$(semantic-release version --print 2>/dev/null | tail -1 | tr -d '[:space:]')
-          NEXT_TAG="v${NEXT_VERSION}"
-          echo "candidate_version=${NEXT_VERSION}"
-          echo "candidate_tag=${NEXT_TAG}"
-
-          if [ "${NEXT_TAG}" != "${BEFORE_TAG}" ] && [ -n "${NEXT_VERSION}" ]; then
-            echo "new=true" >> $GITHUB_OUTPUT
-            echo "version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
-            echo "tag=${NEXT_TAG}" >> $GITHUB_OUTPUT
-            echo "检测到新版本: ${NEXT_VERSION}"
-          else
-            echo "new=false" >> $GITHUB_OUTPUT
-            echo "version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
-            echo "tag=${BEFORE_TAG}" >> $GITHUB_OUTPUT
-            echo "无新版本，当前版本: ${NEXT_VERSION}"
-          fi
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./electron/package.json').version")" >> "$GITHUB_OUTPUT"
 
   build-macos:
-    needs: [calculate-version]
+    needs: [app-version]
     runs-on: macos-latest
     env:
-      PYTHON_VERSION: '3.11.9'
-      APP_VERSION: ${{ needs.calculate-version.outputs.version }}
+      APP_VERSION: ${{ needs.app-version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      - name: 设置 pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
           run_install: false
 
-      - name: 设置 Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
           cache-dependency-path: desktop/web/pnpm-lock.yaml
 
@@ -106,89 +48,45 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run build
 
-      - name: 安装 Python
-        run: |
-          curl -L -o python.pkg "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-macos11.pkg"
-          sudo installer -pkg python.pkg -target /
-          echo "/usr/local/bin" >> $GITHUB_PATH
-          python3 --version
+      - name: 安装 Electron 依赖
+        working-directory: electron
+        run: npm ci
 
-      - name: 缓存 pip
-        uses: actions/cache@v5
-        with:
-          path: ~/Library/Caches/pip
-          key: ${{ runner.os }}-pip-arm64-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-arm64-
+      - name: 构建 macOS Electron 安装包
+        working-directory: electron
+        run: npx electron-builder --mac --publish never
 
-      - name: 安装 Python 依赖
-        run: |
-          python3 -m pip install -r requirements.txt pyinstaller pillow
+      - name: 生成 Electron 更新元数据
+        run: node electron/scripts/generate-update-info.mjs
+        env:
+          APP_VERSION: ${{ env.APP_VERSION }}
 
-      - name: 安装 Playwright Chromium 浏览器（打包到安装包中）
-        run: |
-          python3 -m playwright install chromium
-          # 清理 headless_shell（微信发布不需要，减少打包体积）
-          rm -rf ~/Library/Caches/ms-playwright/chromium_headless_shell-*
-
-      - name: 生成应用图标（icns）
-        run: |
-          mkdir -p build
-          python3 -c "
-          from PIL import Image
-          import os
-
-          img = Image.open('desktop/static/logo-icon.png')
-          size = min(img.size)
-          left = (img.width - size) // 2
-          top = (img.height - size) // 2
-          img = img.crop((left, top, left + size, top + size))
-
-          os.makedirs('build/icon.iconset', exist_ok=True)
-          for s in [16, 32, 64, 128, 256, 512, 1024]:
-              resized = img.resize((s, s), Image.LANCZOS)
-              resized.save(f'build/icon.iconset/icon_{s}x{s}.png')
-              if s * 2 <= 1024:
-                  resized.save(f'build/icon.iconset/icon_{s}x{s}@2x.png')
-
-          import subprocess
-          subprocess.run(['iconutil', '-c', 'icns', 'build/icon.iconset', '-o', 'build/app.icns'], check=True)
-          print('icon created: build/app.icns')
-          "
-
-      - name: PyInstaller 构建应用
-        run: pyinstaller desktop/build.spec --clean
-
-      - name: 创建 DMG（拖拽安装）
-        run: |
-          bash desktop/build_dmg.sh "arm64" "${APP_VERSION}"
-
-      - name: 上传 DMG 构建产物
+      - name: 上传 macOS 构建产物
         uses: actions/upload-artifact@v7
         with:
-          name: MediaForge-macOS-arm64
-          path: MediaForge-macOS-*.dmg
+          name: MediaForge-Electron-macOS-${{ env.APP_VERSION }}
+          path: |
+            electron/out/*.dmg
+            electron/out/*.zip
+            electron/out/latest-mac.yml
+          if-no-files-found: error
 
   build-windows:
-    needs: [calculate-version]
+    needs: [app-version]
     runs-on: windows-latest
     env:
-      APP_VERSION: ${{ needs.calculate-version.outputs.version }}
+      APP_VERSION: ${{ needs.app-version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      - name: 设置 pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
           run_install: false
 
-      - name: 设置 Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
           cache-dependency-path: desktop/web/pnpm-lock.yaml
 
@@ -199,103 +97,55 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run build
 
-      - name: 设置 Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: 安装 Python 依赖
+      - name: 安装 Electron 依赖
+        working-directory: electron
         shell: bash
-        run: |
-          pip install -r requirements.txt pyinstaller pillow
+        run: npm ci
 
-      - name: 安装 Playwright Chromium 浏览器（打包到安装包中）
+      - name: 构建 Windows Electron 安装包
+        working-directory: electron
         shell: bash
-        run: |
-          python -m playwright install chromium
-          # 清理 headless_shell（微信发布不需要，减少打包体积）
-          rm -rf "$LOCALAPPDATA/ms-playwright/chromium_headless_shell-"*
+        run: npx electron-builder --win --publish never
 
-      - name: 生成应用图标（ico）
+      - name: 生成 Electron 更新元数据
         shell: bash
-        run: |
-          mkdir -p desktop/build
-          python -c "
-          from PIL import Image
-          img = Image.open('desktop/static/logo-icon.png')
-          size = min(img.size)
-          left = (img.width - size) // 2
-          top = (img.height - size) // 2
-          img = img.crop((left, top, left + size, top + size))
-          img.save('desktop/build/app.ico', sizes=[(256, 256)])
-          print('icon created: desktop/build/app.ico')
-          "
+        run: node electron/scripts/generate-update-info.mjs
+        env:
+          APP_VERSION: ${{ env.APP_VERSION }}
 
-      - name: PyInstaller 构建 Windows 应用
-        shell: bash
-        run: pyinstaller desktop/build.spec --clean
-
-      - name: 安装 Inno Setup
-        shell: powershell
-        run: |
-          choco install innosetup --no-progress -y
-
-      - name: 构建安装程序
-        shell: cmd
-        run: |
-          iscc /dMyAppVersion="%APP_VERSION%" desktop\setup.iss
-
-      - name: 重命名安装包
-        shell: cmd
-        run: |
-          ren dist\MediaForge-Windows-Setup.exe MediaForge-Windows-Setup-%APP_VERSION%.exe
-
-      - name: 上传安装包
+      - name: 上传 Windows 构建产物
         uses: actions/upload-artifact@v7
         with:
-          name: MediaForge-Windows-${{ env.APP_VERSION }}
-          path: dist/MediaForge-Windows-Setup-*.exe
+          name: MediaForge-Electron-Windows-${{ env.APP_VERSION }}
+          path: |
+            electron/out/*.exe
+            electron/out/latest.yml
+          if-no-files-found: error
 
   create-release:
-    needs: [calculate-version, build-macos, build-windows]
+    needs: [app-version, build-macos, build-windows]
     runs-on: ubuntu-latest
-    if: needs.calculate-version.outputs.new_release == 'true'
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: 下载构建产物
         uses: actions/download-artifact@v8
         with:
-          pattern: MediaForge-*
+          pattern: MediaForge-Electron-*
+          path: release-assets
           merge-multiple: true
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: 安装 python-semantic-release
-        run: pip install python-semantic-release
-
-      - name: 配置 git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Semantic Release — 创建版本 commit、tag、CHANGELOG、GitHub Release
-        run: semantic-release version
+      - name: 创建 GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 上传构件到 Release
-        shell: bash
         run: |
-          gh release upload "${{ needs.calculate-version.outputs.candidate_tag }}" \
-            MediaForge-macOS-*.dmg \
-            MediaForge-Windows-Setup-*.exe
+          TAG="v${{ needs.app-version.outputs.version }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "MediaForge $TAG" --notes "Electron 自动更新版本"
+          fi
+
+      - name: 上传 Electron 构件和更新元数据到 Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "v${{ needs.app-version.outputs.version }}" release-assets/*

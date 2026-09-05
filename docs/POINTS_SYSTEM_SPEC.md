@@ -209,7 +209,7 @@ MediaForge 是一个自动化微信公众号内容发布系统。为了实现商
 3. **Google AdMob** - 国际平台，需要VPN
 
 **技术实现：**
-- 使用PyWebView嵌入广告页面
+- 使用 Electron 子窗口嵌入广告页面
 - 通过JavaScript Bridge与原生通信
 - 服务端验证广告观看状态
 

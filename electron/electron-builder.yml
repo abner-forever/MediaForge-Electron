@@ -1,0 +1,64 @@
+appId: com.mediaforge.app
+productName: MediaForge
+copyright: MIT License
+
+directories:
+  output: out
+  buildResources: build
+
+files:
+  - main.cjs
+  - preload.cjs
+  - backend/**/*.js
+  - package.json
+
+extraResources:
+  - from: ../desktop/static
+    to: desktop/static
+    filter:
+      - "**/*"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+
+publish:
+  provider: github
+  owner: abner-forever
+  repo: MediaForge
+  releaseType: release
+
+win:
+  icon: ../desktop/web/public/logo-icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: MediaForge-Windows-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: MediaForge
+  installerLanguages:
+    - zh_CN
+    - en_US
+
+mac:
+  icon: ../desktop/web/public/logo-icon.png
+  category: public.app-category.productivity
+  identity: null
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+  artifactName: MediaForge-macOS-${arch}-${version}.${ext}
+
+dmg:
+  title: MediaForge ${version}

@@ -29,15 +29,15 @@ MediaForge 自动化内容发布系统
 
 # 二、技术栈（已实现）
 
-- Python 3.10+
-- FastAPI + Uvicorn（桌面 GUI 后端）
+- Node.js
+- Express（桌面 GUI 后端）
 - React 18 + TypeScript + Vite + Tailwind CSS（桌面 GUI 前端）
 - Zustand（前端状态管理）
 - requests（HTTP请求）
 - playwright（浏览器自动化）
 - OpenAI 兼容 Chat Completions API（Mimo / DeepSeek / GLM / OpenAI / Qwen / MiniMax）
 - pillow（图片处理）
-- PyWebView（桌面壳）
+- Electron + electron-builder + electron-updater（桌面壳）
 - CodeMirror + Markdown 编辑器（文章发布页）
 
 > 初始设计仅计划 CLI + requests，实际已扩展为 CLI + 桌面 GUI 双模式。

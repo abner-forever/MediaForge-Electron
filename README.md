@@ -2,7 +2,7 @@
 
 ![构建状态](https://img.shields.io/github/actions/workflow/status/abner-forever/MediaForge/build.yml?branch=main&logo=github&label=%E6%9E%84%E5%BB%BA)
 ![版本](https://img.shields.io/github/v/release/abner-forever/MediaForge?logo=semver&label=%E7%89%88%E6%9C%AC)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Node](https://img.shields.io/badge/Node.js-22%2B-green)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
 
 微信公众号内容自动化工具。多平台图文发现 → 水印过滤 → AI 评分与写作 → 草稿管理 → 一键发布。
@@ -23,7 +23,7 @@
 | **文章工作台** | Markdown 编辑、封面选择、草稿管理、发布队列、效果追踪 |
 | **公众号管理** | 多账号独立 profile、发布历史、阅读数据同步、数据分析 |
 | **素材管理** | 文件夹浏览、重命名、批量操作、元数据标记（标签/评分/使用记录） |
-| **双模式** | 命令行批量处理 + 桌面 GUI 交互式管理，PyWebView 原生窗口 |
+| **双模式** | 命令行批量处理 + 桌面 GUI 交互式管理，Electron 原生窗口 |
 | **主题系统** | 浅色/深色/跟随系统，4 套配色可切换 |
 
 ## 快速开始
@@ -31,8 +31,8 @@
 ### 环境准备
 
 ```bash
-pip install -r requirements.txt
-playwright install chromium   # 开发环境需手动安装；打包版已内置
+cd desktop/web && pnpm install
+cd ../electron && npm install
 ```
 
 推荐使用桌面 GUI 的**设置页面**完成配置，也支持环境变量。
@@ -46,28 +46,34 @@ playwright install chromium   # 开发环境需手动安装；打包版已内置
 | `WEIBO_COOKIE` | 微博登录 Cookie（桌面版可通过扫码获取） |
 | `WEIBO_CELEBRITIES` | 明星列表（逗号分隔） |
 
-> 完整配置项（含水印过滤、发布控制等进阶参数）见 [config.py](config.py)。
+> 完整配置项（含水印过滤、发布控制等进阶参数）可在桌面端设置页完成。
 
 ### 桌面 GUI 模式（推荐）
 
+后端已经迁移到 Electron/Node，不再依赖 Python。Electron 主进程会同时启动 Node HTTP 服务和浏览器窗口。
+
 ```bash
+# 1. 构建 React 前端
 cd desktop/web
-pnpm install && pnpm run build
-cd ..
-python3 main.py
+pnpm install
+pnpm run build
+
+# 2. 启动 Electron
+cd ../electron
+npm install
+npm start
 ```
 
-macOS 下自动打开 PyWebView 窗口，也可浏览器访问 `http://127.0.0.1:8765`。
+也可以单独启动 Node 后端并通过浏览器访问 `http://127.0.0.1:8765`：
+
+```bash
+cd electron
+node -e "require('./backend').startServer(8765)"
+```
 
 ### 命令行模式
 
-```bash
-# 试运行（不发布）
-python3 main.py --dry-run --ignore-post-cache
-
-# 正式运行（处理 3 条）
-python3 main.py --limit 3 --pages 2
-```
+原来的批量处理流程已并入 Electron 桌面端，使用桌面 GUI 即可完成发现、AI 创作和发布。
 
 ### 前端开发
 
@@ -79,13 +85,30 @@ pnpm run dev    # Vite 热更新，端口 5173，API 代理到 8765
 
 ### 打包桌面应用
 
+最简单的方式：
+
+```bash
+bash build_local.sh
+```
+
+手动构建：
+
 ```bash
 cd desktop/web && pnpm install --frozen-lockfile && pnpm run build
-pip install pyinstaller pillow
-pyinstaller desktop/build.spec --clean
+cd ../electron
+npm ci
+npm run dist
 ```
 
 推送到 `main` 分支会自动触发 GitHub Actions 构建，详见 `.github/workflows/build.yml`。
+
+### Electron 自动更新
+
+打包版通过 `electron-updater` 从 GitHub Releases 检查更新。GitHub Actions 会构建 macOS 和 Windows 安装包，并把 `latest.yml` / `latest-mac.yml` 与安装包一起上传到 Release。
+
+发布新版本时更新 `electron/package.json` 的 `version` 字段，推送到 `main` 后 GitHub Actions 会创建 Release。
+
+> macOS 自动更新需要已签名且开启 Hardened Runtime 的应用。当前公开工作流默认构建未签名产物，主要用于测试和自用；如果要面向外部分发 macOS 自动更新，请在仓库 secrets 中配置 `CSC_LINK`、`CSC_KEY_PASSWORD` 和 Apple 证书。
 
 ## 平台支持
 
@@ -95,43 +118,35 @@ pyinstaller desktop/build.spec --clean
 | **今日头条** | `feed` / `user` / `keyword` | feed 模式因签名限制会回退到关键词搜索 |
 | **小红书** | `search` | Playwright 拦截带签名的 API，需要登录 |
 
-采用 `services/platforms/` 插件架构，新增平台只需实现 `PlatformService` 协议。
+平台抓取逻辑已经迁入 `electron/backend`，新增平台只需要在 Node 后端中注册对应 service。
 
 ## 技术栈
 
 | 层级 | 技术 |
 |------|------|
-| 后端 | Python 3.10+, FastAPI, Uvicorn |
+| 后端 | Node.js, Express |
 | 前端 | React 18, TypeScript, Vite, Tailwind CSS, Zustand |
 | 浏览器自动化 | Playwright (Chromium) |
 | AI | OpenAI 兼容 API（Mimo/DeepSeek/GLM/OpenAI/Qwen/MiniMax） |
 | 编辑器 | CodeMirror + Markdown，Tiptap JSON 兼容层 |
-| 桌面壳 | PyWebView |
+| 桌面壳 | Electron + electron-builder + electron-updater |
 
 ## 项目结构
 
 ```
 MediaForge/
-├── main.py                  # CLI 入口
-├── config.py                # 配置管理（dataclass 单例）
-├── services/
-│   ├── platforms/           # 平台插件（weibo / toutiao / xhs）
-│   ├── ai.py                # AI 内容生成
-│   ├── downloader.py        # 图片下载与水印过滤
-│   ├── extensions.py        # 图片评分/封面/排版
-│   ├── wechat.py            # 公众号发布（Playwright）
-│   └── wechat/fetcher.py    # 公众号数据同步
-├── utils/                   # 日志/缓存/鉴权存储
 ├── desktop/
-│   ├── api.py               # FastAPI 路由（60+ 端点）
-│   ├── app_state.py         # 应用状态管理
-│   ├── routers/             # API 路由模块
 │   └── web/                 # React 前端源码
 │       └── src/
 │           ├── pages/       # 7 个工作区页面
 │           ├── components/  # UI 组件
 │           ├── api/         # API 客户端（按域拆分）
 │           └── stores/      # Zustand 状态管理
+├── electron/                # Electron 主进程、Node 后端、自动更新和打包配置
+│   ├── main.cjs
+│   ├── preload.cjs
+│   ├── backend/             # Express API、状态存储和平台服务
+│   └── electron-builder.yml
 └── data/                    # 运行时数据（图片/缓存/日志/鉴权）
 ```
 

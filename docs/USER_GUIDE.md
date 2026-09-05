@@ -33,11 +33,11 @@ python3 main.py --platform weibo --mode keyword
 ### 启动
 
 ```bash
-cd desktop/web && npm install && npm run build
-cd desktop && python3 main.py
+cd desktop/web && pnpm install && pnpm run build
+cd ../electron && npm install && npm start
 ```
 
-浏览器访问 `http://127.0.0.1:8765`，macOS 会自动打开原生窗口。
+Electron 会自动打开原生窗口，也可以浏览器访问 `http://127.0.0.1:8765`。
 
 ### 工作流程
 

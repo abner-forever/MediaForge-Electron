@@ -19,7 +19,7 @@ export default function Layout() {
 
   useEffect(() => { syncTheme(); }, [syncTheme]);
 
-  // 同步进行中的任务到后端（PyWebView 关闭时由 Python 侧检查）
+  // 同步进行中的任务到后端（桌面应用关闭时由 Electron 查询）
   useEffect(() => {
     const tasks = [...activeTasks];
     if (pipelineRunning) tasks.push('智能流水线');
