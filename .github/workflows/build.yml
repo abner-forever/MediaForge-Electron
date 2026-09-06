@@ -13,23 +13,51 @@ permissions:
   contents: write
 
 jobs:
-  app-version:
+  prepare-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      release_sha: ${{ steps.version.outputs.release_sha }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - id: version
         shell: bash
-        run: echo "version=$(node -p "require('./electron/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          CURRENT_VERSION=$(node -p "require('./electron/package.json').version")
+
+          if git rev-parse -q --verify "refs/tags/v${CURRENT_VERSION}" >/dev/null; then
+            NEXT_VERSION=$(node -e "const [major, minor, patch] = '${CURRENT_VERSION}'.split('.').map(Number); console.log([major, minor, patch + 1].join('.'))")
+            node -e "const fs = require('fs'); const file = './electron/package.json'; const data = JSON.parse(fs.readFileSync(file, 'utf8')); data.version = '${NEXT_VERSION}'; fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n')"
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add electron/package.json
+            git commit -m "chore(release): v${NEXT_VERSION}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+
+            RELEASE_SHA=$(git rev-parse HEAD)
+            echo "检测到 v${CURRENT_VERSION} 已发布，自动升级为 v${NEXT_VERSION}"
+          else
+            NEXT_VERSION="${CURRENT_VERSION}"
+            RELEASE_SHA="${GITHUB_SHA}"
+            echo "v${CURRENT_VERSION} 尚无 tag，直接使用当前版本"
+          fi
+
+          echo "version=${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
 
   build-macos:
-    needs: [app-version]
+    needs: [prepare-version]
     runs-on: macos-latest
     env:
-      APP_VERSION: ${{ needs.app-version.outputs.version }}
+      APP_VERSION: ${{ needs.prepare-version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-version.outputs.release_sha }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -72,12 +100,14 @@ jobs:
           if-no-files-found: error
 
   build-windows:
-    needs: [app-version]
+    needs: [prepare-version]
     runs-on: windows-latest
     env:
-      APP_VERSION: ${{ needs.app-version.outputs.version }}
+      APP_VERSION: ${{ needs.prepare-version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-version.outputs.release_sha }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -123,10 +153,12 @@ jobs:
           if-no-files-found: error
 
   create-release:
-    needs: [app-version, build-macos, build-windows]
+    needs: [prepare-version, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare-version.outputs.release_sha }}
 
       - name: 下载构建产物
         uses: actions/download-artifact@v8
@@ -139,13 +171,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v${{ needs.app-version.outputs.version }}"
+          set -euo pipefail
+          TAG="v${{ needs.prepare-version.outputs.version }}"
+          RELEASE_SHA="${{ needs.prepare-version.outputs.release_sha }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "MediaForge $TAG" --notes "Electron 自动更新版本"
+            gh release create "$TAG" --target "$RELEASE_SHA" --title "MediaForge $TAG" --notes "Electron 自动更新版本"
           fi
 
       - name: 上传 Electron 构件和更新元数据到 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "v${{ needs.app-version.outputs.version }}" release-assets/*
+          gh release upload "v${{ needs.prepare-version.outputs.version }}" release-assets/* --clobber

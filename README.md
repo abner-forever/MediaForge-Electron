@@ -106,7 +106,7 @@ npm run dist
 
 打包版通过 `electron-updater` 从 GitHub Releases 检查更新。GitHub Actions 会构建 macOS 和 Windows 安装包，并把 `latest.yml` / `latest-mac.yml` 与安装包一起上传到 Release。
 
-发布新版本时更新 `electron/package.json` 的 `version` 字段，推送到 `main` 后 GitHub Actions 会创建 Release。
+发布新版本时无需手动改版本号：推送到 `main` 后，GitHub Actions 会检测当前 `electron/package.json` 版本是否已有 tag，若有则自动递增 patch 版本、提交版本号变更并创建对应的 Release tag 与构建产物。也可在 Actions 页手动触发同名工作流。
 
 > macOS 自动更新需要已签名且开启 Hardened Runtime 的应用。当前公开工作流默认构建未签名产物，主要用于测试和自用；如果要面向外部分发 macOS 自动更新，请在仓库 secrets 中配置 `CSC_LINK`、`CSC_KEY_PASSWORD` 和 Apple 证书。
 

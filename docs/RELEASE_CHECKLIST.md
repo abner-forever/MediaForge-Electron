@@ -25,7 +25,6 @@
 - [ ] API Key、Cookie、`data/state/*` 不进入提交或发布说明
 
 ## 发布产物
-- [ ] 版本号更新（`pyproject.toml`；前端侧边栏通过构建注入 `__APP_VERSION__`）
-- [ ] GitHub Actions 可构建 macOS DMG/ZIP 和 Windows 安装包
-- [ ] semantic-release 生成 `v{version}` tag 并上传安装包和 `latest*.yml` 到 Release
+- [ ] 推送到 `main` 后由 GitHub Actions 自动递增 `electron/package.json` 版本（前端通过构建注入 `__APP_VERSION__`）
+- [ ] GitHub Actions 自动创建 `v{version}` tag、构建 macOS DMG/ZIP 和 Windows 安装包，并上传 `latest*.yml` 到 Release
 - [ ] 输出更新说明与已知问题
