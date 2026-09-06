@@ -4,7 +4,6 @@ import { articleApi, dashboardApi, queueApi, wechatAccountApi, type ArticleItem,
 import { useLoading } from '../../hooks/useLoading';
 import { useStore } from '../../stores';
 import { I } from './Icons';
-import GlowOrb from './GlowOrb';
 import HeroSection from './HeroSection';
 import StatCards from './StatCards';
 import StudioActions from './StudioActions';
@@ -84,17 +83,13 @@ export default function Dashboard() {
 
   if (connError) return (
     <div style={{
-      position: 'relative',
-      overflow: 'hidden',
-      background: 'linear-gradient(135deg, rgba(120,104,208,0.04), rgba(160,120,208,0.03))',
-      border: '1px solid var(--border)',
-      borderRadius: 18,
+      background: 'var(--bg-card)',
+      borderRadius: 'var(--radius-lg)',
       padding: '80px 0',
       textAlign: 'center',
       boxShadow: 'var(--card-shadow)',
     }}>
-      <GlowOrb color="rgba(239,68,68,0.12)" size={320} style={{ top: -80, right: -80 }} />
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{ opacity: 0.4, color: 'var(--danger)', display: 'flex', justifyContent: 'center' }}>{I.plug(48)}</div>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>无法连接后端服务</h2>
         <p style={{ fontSize: 14, color: 'var(--text-muted)', maxWidth: 400, margin: '0 auto' }}>
@@ -104,17 +99,7 @@ export default function Dashboard() {
         <button
           onClick={load}
           disabled={loadingDashboard}
-          style={{
-            padding: '10px 28px',
-            fontSize: 14,
-            fontWeight: 600,
-            borderRadius: 12,
-            border: 'none',
-            color: '#fff',
-            cursor: 'pointer',
-            background: 'linear-gradient(135deg, #7868d0, #a078d0)',
-            boxShadow: '0 4px 16px rgba(120,104,208,0.25)',
-          }}
+          className="btn btn-primary"
         >
           {loadingDashboard ? '连接中…' : '重试连接'}
         </button>

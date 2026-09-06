@@ -11,6 +11,59 @@ const { abort } = require('./shared');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+const MATERIAL_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.md', '.txt', '.pdf']);
+
+function countFolderItems(dirPath) {
+  let count = 0;
+  for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || entry.name === '__covers__') continue;
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) count += countFolderItems(fullPath);
+    else if (MATERIAL_EXTS.has(path.extname(entry.name).toLowerCase())) count += 1;
+  }
+  return count;
+}
+
+function buildMaterialTree(dirPath, relativePath = '') {
+  if (!fs.existsSync(dirPath)) return [];
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    .filter((entry) => !entry.name.startsWith('.') && entry.name !== '__covers__')
+    .sort((a, b) => {
+      const aDir = a.isDirectory() ? 0 : 1;
+      const bDir = b.isDirectory() ? 0 : 1;
+      if (aDir !== bDir) return aDir - bDir;
+      return a.name.localeCompare(b.name, 'zh-CN');
+    });
+
+  const folders = [];
+  for (const entry of entries) {
+    const childPath = path.join(dirPath, entry.name);
+    const childRel = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      const directFiles = fs.readdirSync(childPath, { withFileTypes: true })
+        .filter((item) => item.isFile() && !item.name.startsWith('.') && item.name !== '__covers__' && MATERIAL_EXTS.has(path.extname(item.name).toLowerCase()))
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+        .map((item) => ({
+          name: item.name,
+          path: childRel ? `${childRel}/${item.name}` : item.name,
+          type: 'file',
+          item_count: 1,
+          children: [],
+          files: [],
+        }));
+      folders.push({
+        name: entry.name,
+        path: childRel,
+        type: 'folder',
+        item_count: countFolderItems(childPath),
+        children: buildMaterialTree(childPath, childRel),
+        files: directFiles,
+      });
+    }
+  }
+  return folders;
+}
+
 function listMaterialsGroups() {
   const root = util.DOWNLOAD_DIR;
   if (!fs.existsSync(root)) return { groups: [], total_images: 0 };
@@ -63,7 +116,8 @@ router.delete('/api/materials', (req, res) => {
 });
 
 router.get('/api/materials/tree', (req, res) => {
-  res.json({ tree: [] });
+  const root = util.DOWNLOAD_DIR;
+  res.json({ tree: fs.existsSync(root) ? buildMaterialTree(root) : [] });
 });
 
 router.get('/api/materials/browse', (req, res) => {
@@ -77,7 +131,7 @@ router.get('/api/materials/browse', (req, res) => {
     const full = path.join(target, name);
     if (name.startsWith('.') || name === '__covers__') continue;
     const stat = fs.statSync(full);
-    if (stat.isDirectory()) folders.push({ name, path: path.relative(root, full).split(path.sep).join('/'), type: 'folder', item_count: 0 });
+    if (stat.isDirectory()) folders.push({ name, path: path.relative(root, full).split(path.sep).join('/'), type: 'folder', item_count: countFolderItems(full) });
     else files.push({ name, path: path.relative(root, full).split(path.sep).join('/'), type: 'file', size: stat.size, suffix: path.extname(name).toLowerCase() });
   }
   res.json({ folders, files, breadcrumb: [{ name: '全部素材', path: '' }] });

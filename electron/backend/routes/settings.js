@@ -105,7 +105,8 @@ router.post('/api/settings', (req, res) => {
   const weiboKeys = {};
   for (const key of ['WEIBO_COOKIE', 'WEIBO_UID', 'WEIBO_SCREEN_NAME', 'WEIBO_AVATAR']) {
     if (key in updates) {
-      weiboKeys[key.toLowerCase()] = updates[key];
+      const normalized = key.toLowerCase();
+      if (normalized !== 'cookie' || updates[key]) weiboKeys[normalized] = updates[key];
       delete updates[key];
     }
   }
@@ -114,7 +115,8 @@ router.post('/api/settings', (req, res) => {
   const toutiaoKeys = {};
   for (const key of ['TOUTIAO_COOKIE', 'TOUTIAO_UID', 'TOUTIAO_SCREEN_NAME', 'TOUTIAO_AVATAR']) {
     if (key in updates) {
-      toutiaoKeys[key.replace('TOUTIAO_', '').toLowerCase()] = updates[key];
+      const normalized = key.replace('TOUTIAO_', '').toLowerCase();
+      if (normalized !== 'cookie' || updates[key]) toutiaoKeys[normalized] = updates[key];
       delete updates[key];
     }
   }
@@ -133,7 +135,7 @@ router.get('/api/settings/weibo-login-stream', async (req, res) => {
   try {
     sse(res, 'progress', { message: '正在启动浏览器...' });
     const result = await services.loginWithBrowser('weibo', (event) => sse(res, event.type, event));
-    if (!result.success) {
+    if (!result.success || !result.cookie) {
       sse(res, 'error', { message: result.message || '微博登录失败' });
     } else {
       store.writeWeiboAuth({
@@ -181,7 +183,7 @@ router.get('/api/settings/toutiao-login-stream', async (req, res) => {
   try {
     sse(res, 'progress', { message: '正在启动浏览器...' });
     const result = await services.loginWithBrowser('toutiao', (event) => sse(res, event.type, event));
-    if (!result.success) {
+    if (!result.success || !result.cookie) {
       sse(res, 'error', { message: result.message || '今日头条登录失败' });
     } else {
       store.writeToutiaoAuth({

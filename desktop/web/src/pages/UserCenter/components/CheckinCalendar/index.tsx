@@ -149,8 +149,8 @@ export default function CheckinCalendar({
         style={{
           cursor: checkinStatus.can_checkin && !justChecked ? 'pointer' : 'not-allowed',
           background: checkinStatus.can_checkin && !justChecked
-            ? 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #a855f7))'
-            : 'var(--bg-card-hover)',
+            ? 'var(--accent)'
+            : 'var(--bg-secondary)',
           color: checkinStatus.can_checkin && !justChecked ? '#fff' : 'var(--text-muted)',
         }}
       >

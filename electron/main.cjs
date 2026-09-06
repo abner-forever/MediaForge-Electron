@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol, shell, net: electronNet } = require('electron');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -9,7 +9,24 @@ const { startServer } = require('./backend');
 
 const APP_NAME = '图文工坊';
 const APP_ID = 'com.mediaforge.app';
+const APP_SCHEME = 'mediaforge';
+const APP_HOST = 'app';
+const APP_URL = `${APP_SCHEME}://${APP_HOST}`;
 const PREFERRED_PORT = 8765;
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+      codeCache: true,
+    },
+  },
+]);
 
 let mainWindow = null;
 let backendServer = null;
@@ -27,6 +44,43 @@ app.setName(APP_NAME);
 
 function log(message) {
   console.log(`[MediaForge] ${message}`);
+}
+
+async function proxyBackendRequest(request) {
+  const url = new URL(request.url);
+  const target = `http://127.0.0.1:${backendPort}${url.pathname}${url.search}`;
+  const headers = new Headers();
+  for (const name of ['accept', 'accept-language', 'authorization', 'content-type', 'cookie', 'if-match', 'if-modified-since', 'if-none-match', 'range', 'x-requested-with']) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  const init = {
+    method: request.method,
+    headers,
+    redirect: 'follow',
+  };
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    init.body = await request.arrayBuffer();
+  }
+
+  const response = await electronNet.fetch(target, init);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+function registerAppProtocol() {
+  // Keep the renderer on mediaforge:// so the page URL does not expose the local HTTP port.
+  protocol.handle(APP_SCHEME, async (request) => {
+    const url = new URL(request.url);
+    if (url.hostname !== APP_HOST) {
+      return new Response('Not Found', { status: 404 });
+    }
+    return proxyBackendRequest(request);
+  });
 }
 
 function updateStatePath() {
@@ -258,11 +312,12 @@ function createMainWindow() {
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const target = new URL(url);
-    const origin = new URL(serverUrl);
-    if (target.origin !== origin.origin) {
-      event.preventDefault();
-      createChildWindow(url);
-    }
+    const backendOrigin = new URL(serverUrl).origin;
+    const isAppNavigation = target.protocol === `${APP_SCHEME}:` && target.hostname === APP_HOST;
+    if (isAppNavigation || target.origin === backendOrigin) return;
+
+    event.preventDefault();
+    createChildWindow(url);
   });
 
   mainWindow.on('close', async (event) => {
@@ -278,7 +333,7 @@ function createMainWindow() {
     app.quit();
   });
 
-  mainWindow.loadURL(serverUrl);
+  mainWindow.loadURL(APP_URL);
 }
 
 function setupIpc() {
@@ -394,6 +449,7 @@ if (!hasSingleInstanceLock) {
     setupIpc();
     try {
       await startBackend();
+      registerAppProtocol();
       createMainWindow();
       setupAutoUpdater();
     } catch (error) {

@@ -121,15 +121,30 @@ function extractWeiboImages(item) {
   const push = (url) => {
     if (typeof url === 'string' && url.startsWith('http') && !urls.includes(url)) urls.push(url);
   };
+  const imageUrl = (value) => (typeof value === 'string' ? value : value?.url);
   for (const key of ['bmiddle_pic', 'original_pic', 'thumbnail_pic', 'gif_url']) push(item[key]);
   for (const pic of item.pics || []) {
     if (typeof pic === 'string') push(pic);
-    else if (pic) push(pic.large?.url || pic.largest?.url || pic.bmiddle_pic || pic.url);
+    else if (pic) {
+      push(imageUrl(pic.large) || imageUrl(pic.largest) || pic.bmiddle_pic || pic.url);
+    }
   }
   for (const info of Object.values(item.pic_infos || {})) {
     if (!info) continue;
-    push(info.largest?.url || info.large?.url || info.original?.url);
+    push(imageUrl(info.largest) || imageUrl(info.large) || imageUrl(info.original));
   }
+  for (const media of item.mix_media_info?.items || []) {
+    const data = media?.data || {};
+    push(
+      imageUrl(data.largest)
+      || imageUrl(data.big_pic)
+      || imageUrl(data.original)
+      || data.url
+      || imageUrl(data.pic_info?.largest)
+      || imageUrl(data.pic_info?.original)
+    );
+  }
+  if (item.retweeted_status) urls.push(...extractWeiboImages(item.retweeted_status));
   return urls;
 }
 
@@ -157,21 +172,76 @@ function inferScene(text) {
   return '日常';
 }
 
+function weiboApiError(payload) {
+  if (!payload || typeof payload !== 'object') return '微博接口返回异常';
+  const ok = payload.ok;
+  if (ok !== undefined && (ok === false || ok === 0 || String(ok) === '0' || (typeof ok === 'number' && ok < 0))) {
+    return payload.msg || payload.message || payload.error || `微博接口返回错误（ok=${ok}）`;
+  }
+  if (typeof payload.url === 'string' && payload.url.includes('login.php')) {
+    return '微博登录已失效，请重新扫码登录';
+  }
+  return '';
+}
+
+function extractWeiboSearchStatuses(payload) {
+  const data = payload?.data;
+  if (Array.isArray(payload?.statuses)) return payload.statuses;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.statuses)) return data.statuses;
+  if (Array.isArray(data?.list)) return data.list;
+  if (Array.isArray(data?.cards)) {
+    const statuses = [];
+    const collect = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.mblog && typeof node.mblog === 'object') statuses.push(node.mblog);
+      for (const group of node.card_group || []) collect(group);
+    };
+    for (const card of data.cards) collect(card);
+    return statuses;
+  }
+  return [];
+}
+
 async function weiboSearch(params) {
   const s = settings();
+  if (!s.weiboCookie) throw new Error('微博 Cookie 未配置，请先在设置页完成微博登录');
+  const xsrf = cookieValue(s.weiboCookie, 'XSRF-TOKEN');
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36',
     Cookie: s.weiboCookie,
     Referer: 'https://weibo.com/',
     Accept: 'application/json, text/plain, */*',
+    'Accept-Language': 'zh-CN,zh;q=0.9',
     'X-Requested-With': 'XMLHttpRequest',
   };
-  const response = await axios.get('https://weibo.com/ajax/statuses/search', {
-    params: { q: params.keyword, page: params.page || 1, haspic: '1' },
-    headers,
-    timeout: 20000,
-  });
-  const statuses = response.data?.statuses || response.data?.data?.list || [];
+  if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
+
+  const paramSets = [
+    { q: params.keyword, page: params.page || 1, haspic: '1' },
+    { q: params.keyword, page: params.page || 1 },
+  ];
+  let payload = null;
+  let lastError = null;
+  for (const query of paramSets) {
+    try {
+      const response = await axios.get('https://weibo.com/ajax/statuses/search', {
+        params: query,
+        headers,
+        timeout: 20000,
+      });
+      payload = response.data;
+      const apiError = weiboApiError(payload);
+      if (!apiError) break;
+      lastError = new Error(apiError);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!payload) throw lastError || new Error('微博搜索请求失败');
+  const apiError = weiboApiError(payload);
+  if (apiError) throw new Error(apiError);
+  const statuses = extractWeiboSearchStatuses(payload);
   return statuses.map((item) => weiboPost(item, params.celebrity || '关键词搜索', params.scene, 'search_desktop')).filter(Boolean);
 }
 
@@ -240,6 +310,7 @@ async function fetchPosts(platform, mode, options = {}) {
   if (platform === 'weibo') {
     const celebrities = options.celebrities?.length ? options.celebrities : csvList(s.cfg.WEIBO_CELEBRITIES);
     const tags = options.searchTags?.length ? options.searchTags : csvList(s.cfg.WEIBO_SEARCH_TAGS || '美图,日常,时装周,美妆,穿搭');
+    const superTopics = options.superTopics?.length ? options.superTopics : csvList(s.cfg.WEIBO_SUPER_TOPICS);
     if (mode === 'own') {
       // Own timeline requires uid; fall back to keyword search when unavailable.
       for (const page of pages) {
@@ -249,6 +320,13 @@ async function fetchPosts(platform, mode, options = {}) {
     } else if (mode === 'keyword') {
       for (const tag of tags) {
         for (const page of pages) posts.push(...await weiboSearch({ keyword: tag, page, celebrity: '关键词搜索', scene: tag }));
+      }
+    } else if (mode === 'super_topic') {
+      for (const topic of superTopics.length ? superTopics : ['明星']) {
+        const keyword = topic.endsWith('超话') ? topic : `${topic}超话`;
+        for (const page of pages) {
+          posts.push(...await weiboSearch({ keyword, page, celebrity: topic, scene: topic }));
+        }
       }
     } else {
       const names = celebrities.length ? celebrities : ['迪丽热巴'];
@@ -641,10 +719,15 @@ async function wechatPublish(options) {
 
 async function loginWithBrowser(platform, onEvent) {
   const { chromium } = require('playwright');
-  const browser = await chromium.launch({ headless: false, args: ['--window-size=800,900'] });
-  const context = await browser.newContext({ viewport: { width: 760, height: 860 } });
+  const browser = await chromium.launch({ headless: false, channel: 'chromium', args: ['--window-size=800,900'] });
+  const context = await browser.newContext({
+    viewport: { width: 760, height: 860 },
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/148.0.0.0 Safari/537.36',
+  });
   const page = await context.newPage();
-  const url = platform === 'weibo' ? 'https://passport.weibo.com/sso/signin?entry=miniblog&source=miniblog&disp=popup' : 'https://www.toutiao.com/';
+  const url = platform === 'weibo'
+    ? 'https://passport.weibo.com/sso/signin?entry=miniblog&source=miniblog&disp=popup&url=https%3A%2F%2Fweibo.com%2Fnewlogin%3Ftabtype%3Dweibo%26gid%3D102803%26openLoginLayer%3D0%26url%3Dhttps%3A%2F%2Fweibo.com%2F&from=weibopro'
+    : 'https://www.toutiao.com/';
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   if (platform === 'toutiao') {
     try {
@@ -675,11 +758,7 @@ async function loginWithBrowser(platform, onEvent) {
     if (platform === 'weibo') {
       await page.waitForFunction(() => {
         const host = window.location.hostname;
-        const path = window.location.pathname;
-        const onWeiboHome = host.includes('weibo.com')
-          && !host.includes('passport')
-          && !/\/login|\/signin|\/newlogin|\/register|\/signup/.test(path);
-        return onWeiboHome;
+        return host.includes('weibo.com') && !host.includes('passport');
       }, { timeout: 300000 });
     } else {
       await page.waitForFunction(() => document.cookie.includes('sessionid') || document.cookie.includes('tt_sessionid'), { timeout: 300000 });
@@ -688,21 +767,31 @@ async function loginWithBrowser(platform, onEvent) {
     await browser.close();
     return { success: false, message: '登录超时，请重试' };
   }
-  if (platform === 'weibo' && !page.url().includes('weibo.com')) {
-    await page.goto('https://weibo.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  if (platform === 'weibo') {
+    try {
+      await page.goto('https://weibo.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch {
+      // The login page may already be on weibo.com; keep the cookies we have.
+    }
   }
   try {
     await page.waitForLoadState('networkidle', { timeout: 15000 });
   } catch {
     // Continue with the cookies that are already available.
   }
-  const cookies = await context.cookies();
+  await sleep(2000);
+  let cookies = await context.cookies(['https://weibo.com/']);
+  if (!cookies.length) cookies = await context.cookies();
   if (!cookies.length) {
     await browser.close();
     return { success: false, message: '登录成功但未获取到 Cookie，请重试' };
   }
   const cookieParts = cookies.map((cookie) => `${cookie.name}=${cookie.value}`);
   const cookie = cookieParts.join('; ');
+  if (!cookie) {
+    await browser.close();
+    return { success: false, message: '登录成功但 Cookie 内容为空，请重试' };
+  }
   let identity = {};
   if (platform === 'weibo') {
     const uidCookie = cookies.find((item) => item.name === 'uid')?.value || '';
@@ -710,6 +799,11 @@ async function loginWithBrowser(platform, onEvent) {
     if (!identity.uid || !identity.screen_name) {
       const verified = await verifyWeiboCookie(cookie, uidCookie);
       if (verified.valid) identity = verified;
+    }
+    if (!identity.uid && uidCookie) identity = { ...identity, uid: uidCookie };
+    if (!identity.uid && !identity.screen_name && !uidCookie) {
+      await browser.close();
+      return { success: false, message: '未获取到微博账号信息，请重试' };
     }
   } else {
     identity = await extractToutiaoIdentity(page);

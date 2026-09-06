@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../../stores';
 
 const ICONS = {
@@ -21,23 +22,30 @@ const ICONS = {
 export default function Toast() {
   const toasts = useStore(s => s.toasts);
   const removeToast = useStore(s => s.removeToast);
-  if (!toasts.length) return null;
 
   return (
     <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
-      {toasts.map(t => (
-        <div key={t.id} onClick={() => removeToast(t.id)}
-          className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium cursor-pointer shadow-lg animate-scale ${
-            t.type === 'success' ? 'bg-emerald-600 text-white' :
-            t.type === 'error' ? 'bg-red-500 text-white' :
-            'glass text-text shadow-xl'
-          }`}
-          style={{ animation: 'toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both' }}
-        >
-          {ICONS[t.type]}
-          <span>{t.msg}</span>
-        </div>
-      ))}
+      <AnimatePresence initial={false}>
+        {toasts.map(t => (
+          <motion.div
+            key={t.id}
+            layout
+            initial={{ opacity: 0, x: 56, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 56, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+            onClick={() => removeToast(t.id)}
+            className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium cursor-pointer shadow-lg ${
+              t.type === 'success' ? 'bg-emerald-600 text-white' :
+              t.type === 'error' ? 'bg-red-500 text-white' :
+              'bg-bg-card text-text shadow-lg'
+            }`}
+          >
+            {ICONS[t.type]}
+            <span>{t.msg}</span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

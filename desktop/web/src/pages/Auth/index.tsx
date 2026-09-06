@@ -223,7 +223,7 @@ export default function Auth() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#f6f8fc',
+      background: 'var(--bg)',
       padding: '48px 16px',
     }}>
       <div style={{ width: '100%', maxWidth: 440 }}>
@@ -232,24 +232,24 @@ export default function Auth() {
           <div style={{
             width: 76, height: 76, margin: '0 auto 16px',
             borderRadius: 18,
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: 'var(--bg-card)',
+            border: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 10px 28px rgba(15, 23, 42, 0.08)',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
             overflow: 'hidden',
           }}>
             <img src="/static/logo.png" alt="图文工坊" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: 0 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', margin: 0, letterSpacing: 0 }}>
             图文工坊
           </h1>
-          <p style={{ fontSize: 14, color: '#64748b', margin: '8px 0 0' }}>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '8px 0 0' }}>
             {titles[mode]}
           </p>
         </div>
 
         {/* 表单卡片 */}
-        <div className="card" style={{ padding: '30px 28px', border: '1px solid #e2e8f0', boxShadow: '0 18px 44px rgba(15, 23, 42, 0.08)' }}>
+        <div className="card" style={{ padding: '30px 28px', border: 'none', boxShadow: 'var(--card-shadow)' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* 登录方式切换（仅登录模式） */}
             {mode === 'login' && (

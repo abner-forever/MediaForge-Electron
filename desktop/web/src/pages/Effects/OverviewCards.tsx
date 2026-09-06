@@ -2,7 +2,7 @@ import type { EffectSummary } from '../../types';
 import { formatCount } from '../../utils/format';
 
 const CARDS = [
-  { key: 'total_posts' as const, label: '发布总数', color: '#7868d0' },
+  { key: 'total_posts' as const, label: '发布总数', color: '#4e6fc2' },
   { key: 'total_reads' as const, label: '总阅读量', color: '#3b82f6' },
   { key: 'total_comments' as const, label: '总评论', color: '#10b981' },
   { key: 'total_likes' as const, label: '总点赞', color: '#f59e0b' },
@@ -15,35 +15,49 @@ export default function OverviewCards({ summary }: { summary: EffectSummary }) {
         <div
           key={key}
           style={{
-            position: 'relative',
-            overflow: 'hidden',
-            background: `linear-gradient(135deg, ${color}08, ${color}04), var(--bg-card)`,
-            border: `1px solid ${color}20`,
-            borderRadius: 16,
-            padding: '24px 20px',
-            textAlign: 'center',
-            transition: 'all 0.3s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '18px 20px',
+            transition: 'background 0.2s',
             boxShadow: 'var(--card-shadow)',
           }}
         >
           <div style={{
-            position: 'absolute', top: 0, left: '15%', right: '15%', height: 3,
-            background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
-            borderRadius: '0 0 4px 4px',
-          }} />
-          <div
-            title={summary[key].toLocaleString()}
-            style={{
-              fontSize: 32, fontWeight: 700, lineHeight: 1, marginBottom: 6,
-              fontFeatureSettings: '"tnum"',
-              background: `linear-gradient(135deg, var(--text), ${color})`,
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-            }}
-          >
-            {formatCount(summary[key])}
+            width: 42,
+            height: 42,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'var(--radius-sm)',
+            background: `${color}18`,
+            color,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.04em',
+          }}>
+            {label.slice(0, 2)}
           </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-            {label}
+          <div style={{ minWidth: 0 }}>
+            <div
+              title={summary[key].toLocaleString()}
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeight: 1,
+                marginBottom: 5,
+                color: 'var(--text)',
+                fontFeatureSettings: '"tnum"',
+              }}
+            >
+              {formatCount(summary[key])}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>
+              {label}
+            </div>
           </div>
         </div>
       ))}

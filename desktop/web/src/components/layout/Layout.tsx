@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import Sidebar from './Sidebar';
 import Toast from '../ui/Toast';
 import Lightbox from './Lightbox';
@@ -35,12 +36,23 @@ export default function Layout() {
       <main style={{
         flex: 1,
         overflow: 'hidden',
-        background: 'linear-gradient(180deg, rgba(120,104,208,0.015) 0%, transparent 30%), var(--bg)',
+        background: 'var(--bg)',
         display: 'flex',
         flexDirection: 'column',
       }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 32px', flex: 1, minHeight: 0, width: '100%', overflowY: 'auto' }}>
-          <Outlet />
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              style={{ minHeight: 0 }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
       <Toast />
@@ -49,20 +61,36 @@ export default function Layout() {
 
       {/* 流水线运行中浮动指示器 */}
       {showPipelineIndicator && (
-        <button
+        <motion.button
           onClick={() => navigate('/pipeline')}
-          className="fixed bottom-6 right-6 z-[7000] group flex items-center gap-2 border border-border rounded-full pl-3 pr-4 py-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+          className="fixed bottom-6 right-6 z-[7000] group flex items-center gap-2 rounded-full pl-3 pr-4 py-2 shadow-lg"
           style={{ background: 'var(--bg-card)', boxShadow: 'var(--card-shadow)' }}
+          initial={{ opacity: 0, y: 16, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 28 }}
           title="点击查看流水线进度"
         >
-          {/* 水波纹动画 */}
           <span className="relative flex items-center justify-center w-8 h-8">
-            <span className="absolute inset-0 rounded-full bg-accent/20 animate-ping" />
-            <span className="absolute inset-1 rounded-full bg-accent/30 animate-pulse" />
-            <span className="relative w-3 h-3 rounded-full bg-accent" />
+            <motion.span
+              className="absolute inset-0 rounded-full bg-accent/20"
+              animate={{ scale: [1, 1.8], opacity: [0.7, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+            />
+            <motion.span
+              className="absolute inset-1 rounded-full bg-accent/30"
+              animate={{ scale: [1, 1.45], opacity: [0.6, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.2 }}
+            />
+            <motion.span
+              className="relative w-3 h-3 rounded-full bg-accent"
+              animate={{ scale: [1, 1.12, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+            />
           </span>
           <span className="text-xs font-medium text-text">流水线运行中</span>
-        </button>
+        </motion.button>
       )}
     </div>
   );

@@ -85,6 +85,12 @@ export default function WeiboSection({ data, save, onReload }: { data: SettingsD
           const newUid = evt.uid || '';
           const newScreenName = evt.screen_name || '';
           const newAvatar = evt.avatar || '';
+          if (!newCookie) {
+            setLoginState('error');
+            setLoginMessage('登录成功但未获取到 Cookie，请重试');
+            addToast('登录成功但未获取到 Cookie，请重试', 'error');
+            return;
+          }
           setCookie(newCookie);
           setUid(newUid);
           setScreenName(newScreenName);
