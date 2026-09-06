@@ -53,7 +53,7 @@ export default function CheckinCard({ status, onCheckin }: Props) {
                   ? 'var(--accent-soft)'
                   : isCurrent
                     ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
-                    : 'var(--bg-card-hover)',
+                    : 'var(--bg-secondary)',
                 border: isCurrent ? '1.5px solid var(--accent)' : '1px solid transparent',
                 transition: 'all 0.2s',
               }}
@@ -91,8 +91,8 @@ export default function CheckinCard({ status, onCheckin }: Props) {
           fontWeight: 600,
           cursor: status.can_checkin && !justChecked ? 'pointer' : 'not-allowed',
           background: status.can_checkin && !justChecked
-            ? 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #a855f7))'
-            : 'var(--bg-card-hover)',
+            ? 'var(--accent)'
+            : 'var(--bg-secondary)',
           color: status.can_checkin && !justChecked ? '#fff' : 'var(--text-muted)',
           transition: 'all 0.2s',
         }}

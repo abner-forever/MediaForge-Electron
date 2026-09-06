@@ -53,7 +53,6 @@ function writeWeiboAuth(payload = {}) {
   const data = readWeiboAuth();
   for (const key of ['cookie', 'uid', 'screen_name', 'avatar']) {
     if (payload[key]) data[key] = payload[key];
-    else delete data[key];
   }
   writeJson(WEIBO_AUTH_PATH, data);
 }
@@ -70,7 +69,6 @@ function writeToutiaoAuth(payload = {}) {
   const data = readToutiaoAuth();
   for (const key of ['cookie', 'uid', 'screen_name', 'avatar']) {
     if (payload[key]) data[key] = payload[key];
-    else delete data[key];
   }
   writeJson(TOUTIAO_AUTH_PATH, data);
 }

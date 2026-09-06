@@ -43,11 +43,11 @@ function blendIntoDark(hex: string, amount: number, bg = '#0c0d14') {
 }
 
 const ACCENT_GRADIENTS: Record<string, string> = {
-  blue: 'linear-gradient(135deg, #4e6fc2, #6078c8)',
-  green: 'linear-gradient(135deg, #2e9e7a, #48a89a)',
-  purple: 'linear-gradient(135deg, #7868d0, #a078d0)',
-  orange: 'linear-gradient(135deg, #d4893a, #c8a050)',
-  notion: 'linear-gradient(135deg, #2eaadc, #4ab8e0)',
+  blue: 'linear-gradient(135deg, #4e6fc2, #4e6fc2)',
+  green: 'linear-gradient(135deg, #2e9e7a, #2e9e7a)',
+  purple: 'linear-gradient(135deg, #7868d0, #7868d0)',
+  orange: 'linear-gradient(135deg, #d4893a, #d4893a)',
+  notion: 'linear-gradient(135deg, #2eaadc, #2eaadc)',
 };
 
 function applyAccentVars(accentId: string, theme: string) {

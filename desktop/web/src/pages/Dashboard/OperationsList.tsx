@@ -1,5 +1,4 @@
 import type { OperationItem } from '../../api/client';
-import GlowOrb from './GlowOrb';
 import { I, ACTION_ICONS } from './Icons';
 import { timeAgo } from './StatusDot';
 
@@ -13,7 +12,7 @@ export default function OperationsList({
     <section>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 3, height: 16, borderRadius: 2, background: 'linear-gradient(180deg, #4f8cff, #a855f7)' }} />
+          <div style={{ width: 3, height: 16, borderRadius: 2, background: 'var(--accent)' }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', letterSpacing: '0.04em' }}>最近操作</span>
           {opsTotal > 0 && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFeatureSettings: '"tnum"' }}>共 {opsTotal} 条</span>
@@ -34,17 +33,13 @@ export default function OperationsList({
         position: 'relative',
         overflow: 'hidden',
         background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
         borderRadius: 12,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        boxShadow: 'var(--card-shadow)',
       }}>
         {ops.length === 0 ? (
           <div style={{ padding: '48px 0', textAlign: 'center' }}>
-            <GlowOrb color="rgba(79,140,255,0.1)" size={220} style={{ top: -60, right: -60 }} />
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <div style={{ opacity: 0.2, marginBottom: 8, color: '#4f8cff', display: 'flex', justifyContent: 'center' }}>{I.list(36)}</div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>暂无操作记录</div>
-            </div>
+            <div style={{ opacity: 0.3, marginBottom: 8, color: 'var(--text-muted)', display: 'flex', justifyContent: 'center' }}>{I.list(36)}</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>暂无操作记录</div>
           </div>
         ) : (
           <div style={{ maxHeight: 256, overflowY: 'auto' }}>

@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { wechatAccountApi, type WeChatAccount } from '../../api/client';
 import { useStore } from '../../stores';
 
@@ -183,56 +184,66 @@ export default function Sidebar() {
           const isPipelineRunning = item.path === '/pipeline' && pipelineRunning;
           const isQueuePublishing = item.path === '/queue' && activePublishCount > 0;
           return (
-            <NavLink
+            <motion.div
               key={item.path}
-              to={item.path}
-              end={item.path === '/'}
-              className={({ isActive }) =>
-                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-[10px] rounded-lg text-sm font-medium ${
-                  isActive
-                    ? 'nav-active'
-                    : 'text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)]'
-                }`
-              }
-              style={{ marginBottom: 2, textDecoration: 'none', position: 'relative' }}
-              title={collapsed ? item.label : undefined}
+              whileHover={{ x: collapsed ? 0 : 3 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+              style={{ marginBottom: 2 }}
             >
-              <div style={{ position: 'relative' }}>
-                {item.icon}
-                {(isPipelineRunning || isQueuePublishing) && (
-                  <div style={{
-                    position: 'absolute',
-                    top: -2,
-                    right: -2,
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: 'var(--accent)',
-                    border: '2px solid var(--bg-sidebar)',
-                    animation: 'pulse 2s infinite',
-                  }} />
+              <NavLink
+                to={item.path}
+                end={item.path === '/'}
+                className={({ isActive }) =>
+                  `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-[10px] rounded-lg text-sm font-medium ${
+                    isActive
+                      ? 'nav-active'
+                      : 'text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)]'
+                  }`
+                }
+                style={{ textDecoration: 'none', position: 'relative' }}
+                title={collapsed ? item.label : undefined}
+              >
+                <div style={{ position: 'relative' }}>
+                  {item.icon}
+                  {(isPipelineRunning || isQueuePublishing) && (
+                    <motion.div
+                      animate={{ scale: [1, 1.35, 1] }}
+                      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                      style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'var(--accent)',
+                        border: '2px solid var(--bg-sidebar)',
+                      }}
+                    />
+                  )}
+                </div>
+                {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                {isPipelineRunning && !collapsed && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    fontSize: 10,
+                    color: 'var(--accent)',
+                    fontWeight: 600,
+                    letterSpacing: '0.05em',
+                  }}>
+                    运行中
+                  </span>
                 )}
-              </div>
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
-              {isPipelineRunning && !collapsed && (
-                <span style={{
-                  marginLeft: 'auto',
-                  fontSize: 10,
-                  color: 'var(--accent)',
-                  fontWeight: 600,
-                  letterSpacing: '0.05em',
-                }}>
-                  运行中
-                </span>
-              )}
-              {isQueuePublishing && !collapsed && (
-                <span
-                  className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin"
-                  style={{ marginLeft: 'auto' }}
-                  title={`${activePublishCount} 个任务发布中`}
-                />
-              )}
-            </NavLink>
+                {isQueuePublishing && !collapsed && (
+                  <span
+                    className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin"
+                    style={{ marginLeft: 'auto' }}
+                    title={`${activePublishCount} 个任务发布中`}
+                  />
+                )}
+              </NavLink>
+            </motion.div>
           );
         })}
       </nav>
@@ -246,7 +257,7 @@ export default function Sidebar() {
           <NavLink
             to={{ pathname: '/settings', hash: 'system-wechat' }}
             className="block rounded-lg px-3 py-[10px] mb-2 hover:bg-[var(--sidebar-hover)]"
-            style={{ textDecoration: 'none', border: '1px solid var(--sidebar-border)' }}
+            style={{ textDecoration: 'none', boxShadow: 'var(--card-shadow)' }}
             title="进入公众号账号设置"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>

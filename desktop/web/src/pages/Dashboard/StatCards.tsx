@@ -1,90 +1,69 @@
+import { motion } from 'motion/react';
 import type { DashboardStats } from '../../api/client';
-import { CARD_THEMES, I } from './Icons';
+import { I } from './Icons';
 
 export default function StatCards({ stats, navigate }: { stats: DashboardStats | null; navigate: (path: string) => void }) {
   const statList = [
-    { label: '本地图片', value: stats?.local_images ?? 0, path: '/materials', icon: I.image(24) },
-    { label: '发布队列', value: stats?.queue_size ?? 0, path: '/queue', icon: I.upload(24) },
-    { label: '已选图片', value: stats?.selected_count ?? 0, icon: I.check(24) },
-    { label: '搜索结果', value: stats?.discovery_count ?? 0, icon: I.target(24) },
+    { label: '本地图片', value: stats?.local_images ?? 0, path: '/materials', icon: I.image(22) },
+    { label: '发布队列', value: stats?.queue_size ?? 0, path: '/queue', icon: I.upload(22) },
+    { label: '已选图片', value: stats?.selected_count ?? 0, icon: I.check(22) },
+    { label: '搜索结果', value: stats?.discovery_count ?? 0, icon: I.target(22) },
   ];
 
   return (
     <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-      {statList.map((item, i) => {
-        const theme = CARD_THEMES[i];
-        return (
-          <div
-            key={item.label}
-            onClick={() => item.path && navigate(item.path)}
+      {statList.map((item) => (
+        <motion.div
+          key={item.label}
+          whileHover={item.path ? { y: -3 } : undefined}
+          whileTap={item.path ? { scale: 0.985 } : undefined}
+          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+          onClick={() => item.path && navigate(item.path)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '18px 20px',
+            cursor: item.path ? 'pointer' : 'default',
+            boxShadow: 'var(--card-shadow)',
+          }}
+        >
+          <motion.div
+            whileHover={{ scale: 1.08, rotate: -3 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 24 }}
             style={{
-              position: 'relative',
-              overflow: 'hidden',
-              background: `${theme.bg}, var(--bg-card)`,
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: `1px solid ${theme.border}`,
-              borderRadius: 16,
-              padding: '24px 20px',
-              textAlign: 'center',
-              cursor: item.path ? 'pointer' : 'default',
-              transition: 'all 0.3s var(--ease-out)',
-              boxShadow: 'var(--card-shadow)',
-            }}
-            onMouseEnter={(e) => {
-              if (item.path) {
-                e.currentTarget.style.borderColor = theme.accent;
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = `0 12px 32px ${theme.glow}`;
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border;
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = 'var(--card-shadow)';
+              width: 42,
+              height: 42,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--accent-soft)',
+              color: 'var(--accent)',
             }}
           >
+            {item.icon}
+          </motion.div>
+          <div style={{ minWidth: 0 }}>
             <div style={{
-              position: 'absolute',
-              top: 0,
-              left: '15%',
-              right: '15%',
-              height: 3,
-              background: `linear-gradient(90deg, transparent, ${theme.accent}, transparent)`,
-              borderRadius: '0 0 4px 4px',
-            }} />
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <div style={{
-                marginBottom: 12,
-                color: theme.accent,
-                transition: 'transform 0.3s',
-              }}
-                className="stats-icon"
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1) rotate(-3deg)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
-              >
-                {item.icon}
-              </div>
-              <div style={{
-                fontSize: 32,
-                fontWeight: 700,
-                lineHeight: 1,
-                marginBottom: 6,
-                fontFeatureSettings: '"tnum"',
-                background: `linear-gradient(135deg, var(--text), ${theme.accent})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>
-                {item.value}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-                {item.label}
-              </div>
+              fontSize: 24,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: 'var(--text)',
+              fontFeatureSettings: '"tnum"',
+              marginBottom: 5,
+            }}>
+              {item.value}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>
+              {item.label}
             </div>
           </div>
-        );
-      })}
+        </motion.div>
+      ))}
     </section>
   );
 }

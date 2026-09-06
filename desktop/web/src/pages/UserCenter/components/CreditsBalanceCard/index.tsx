@@ -14,8 +14,8 @@ export default function CreditsBalanceCard({ balance, checkinStatus }: CreditsBa
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #a855f7))',
-        borderRadius: 16,
+        background: 'var(--accent)',
+        borderRadius: 'var(--radius-lg)',
         padding: '28px 32px',
         color: '#fff',
         position: 'relative',
@@ -25,10 +25,6 @@ export default function CreditsBalanceCard({ balance, checkinStatus }: CreditsBa
         justifyContent: 'space-between',
       }}
     >
-      <div
-        className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none"
-        style={{ background: 'rgba(255,255,255,0.1)' }}
-      />
       <div className="relative">
         <div className="text-[13px] opacity-85 mb-2">当前积分</div>
         <div className="text-[42px] font-bold tracking-tight leading-[1.1]">

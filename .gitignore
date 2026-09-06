@@ -20,3 +20,4 @@ tests/reports/
 .gstack/
 
 .pnpm-store/
+.chrome-check
